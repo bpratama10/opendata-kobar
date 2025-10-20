@@ -1,0 +1,121 @@
+import { Dataset } from "@/components/DataCard";
+
+export const mockDatasets: Dataset[] = [
+  {
+    id: "1",
+    slug: "city-budget-expenditure-data-2024",
+    title: "City Budget and Expenditure Data 2024",
+    description: "Comprehensive financial data including city budget allocations, departmental spending, and public expenditure across various sectors including infrastructure, education, and social services.",
+    source: "Department of Finance",
+    tags: ["budget", "finance", "government", "public spending"],
+    downloadCount: 15420,
+    lastUpdated: "2024-01-15",
+    size: "45.2 MB",
+    format: "CSV",
+    category: "Government"
+  },
+  {
+    id: "2",
+    slug: "public-health-statistics-dashboard",
+    title: "Public Health Statistics Dashboard",
+    description: "Real-time health metrics including disease prevalence, vaccination rates, hospital capacity, and public health indicators across different demographics and geographic regions.",
+    source: "Health Department",
+    tags: ["health", "statistics", "vaccination", "demographics"],
+    downloadCount: 28900,
+    lastUpdated: "2024-01-20",
+    size: "78.5 MB",
+    format: "JSON",
+    category: "Health"
+  },
+  {
+    id: "3",
+    slug: "transportation-traffic-flow-data",
+    title: "Transportation and Traffic Flow Data",
+    description: "Detailed traffic patterns, public transit usage, road conditions, and transportation infrastructure data collected from sensors and monitoring systems throughout the city.",
+    source: "Department of Transportation",
+    tags: ["traffic", "transportation", "mobility", "infrastructure"],
+    downloadCount: 12300,
+    lastUpdated: "2024-01-18",
+    size: "156.8 MB",
+    format: "CSV",
+    category: "Transport"
+  },
+  {
+    id: "4",
+    slug: "environmental-quality-monitoring",
+    title: "Environmental Quality Monitoring",
+    description: "Air quality measurements, water quality data, noise pollution levels, and environmental impact assessments from monitoring stations across urban and suburban areas.",
+    source: "Environmental Protection Agency",
+    tags: ["environment", "air quality", "pollution", "monitoring"],
+    downloadCount: 9800,
+    lastUpdated: "2024-01-22",
+    size: "92.1 MB",
+    format: "XML",
+    category: "Environment"
+  },
+  {
+    id: "5",
+    slug: "education-performance-metrics",
+    title: "Education Performance Metrics",
+    description: "Student achievement data, graduation rates, school funding information, and educational resource allocation across different schools and educational districts.",
+    source: "Ministry of Education",
+    tags: ["education", "performance", "schools", "students"],
+    downloadCount: 7650,
+    lastUpdated: "2024-01-12",
+    size: "34.7 MB",
+    format: "CSV",
+    category: "Education"
+  },
+  {
+    id: "6",
+    slug: "economic-development-indicators",
+    title: "Economic Development Indicators",
+    description: "Business registration data, employment statistics, economic growth metrics, and industry sector analysis providing insights into local economic trends and development.",
+    source: "Economic Development Office",
+    tags: ["economy", "business", "employment", "development"],
+    downloadCount: 11200,
+    lastUpdated: "2024-01-25",
+    size: "67.3 MB",
+    format: "JSON",
+    category: "Economy"
+  },
+  {
+    id: "7",
+    slug: "housing-real-estate-market-data",
+    title: "Housing and Real Estate Market Data",
+    description: "Property values, rental prices, housing availability, zoning information, and real estate market trends across different neighborhoods and property types.",
+    source: "Housing Authority",
+    tags: ["housing", "real estate", "property", "market"],
+    downloadCount: 18750,
+    lastUpdated: "2024-01-19",
+    size: "125.4 MB",
+    format: "CSV",
+    category: "Government"
+  },
+  {
+    id: "8",
+    slug: "climate-weather-historical-data",
+    title: "Climate and Weather Historical Data",
+    description: "Long-term weather patterns, climate data, precipitation records, temperature trends, and meteorological information spanning multiple decades for research and analysis.",
+    source: "National Weather Service",
+    tags: ["climate", "weather", "temperature", "precipitation"],
+    downloadCount: 14100,
+    lastUpdated: "2024-01-21",
+    size: "189.6 MB",
+    format: "CSV",
+    category: "Environment"
+  },
+  {
+    id: "9",
+    slug: "public-safety-crime-statistics",
+    title: "Public Safety and Crime Statistics",
+    description: "Crime incident reports, public safety metrics, emergency response times, and law enforcement activity data anonymized and aggregated for public transparency.",
+    source: "Police Department",
+    tags: ["safety", "crime", "police", "emergency"],
+    downloadCount: 22400,
+    lastUpdated: "2024-01-16",
+    size: "56.9 MB",
+    format: "JSON",
+    category: "Government"
+  }
+];

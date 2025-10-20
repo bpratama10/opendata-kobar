@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Open Data Platform Design System - Professional, clean, data-focused */
+
+@layer base {
+  :root {
+    /* Core Background & Foreground */
+    --background: 220 20% 97%;
+    --foreground: 215 25% 15%;
+
+    /* Card System */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+    --card-shadow: 215 25% 15% / 0.08;
+    --card-hover-shadow: 215 25% 15% / 0.15;
+
+    /* Data Platform Primary - Professional Blue */
+    --primary: 210 90% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 210 90% 58%;
+    --primary-muted: 210 90% 48% / 0.1;
+
+    /* Data Secondary - Teal Accent */
+    --secondary: 180 65% 45%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-muted: 180 65% 45% / 0.1;
+
+    /* Success - Data Quality Green */
+    --success: 150 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 150 60% 45% / 0.1;
+
+    /* Neutral System */
+    --muted: 215 15% 92%;
+    --muted-foreground: 215 15% 45%;
+    --accent: 215 15% 94%;
+    --accent-foreground: 215 25% 20%;
+
+    /* Interactive Elements */
+    --border: 215 15% 88%;
+    --input: 215 15% 88%;
+    --ring: 210 90% 48%;
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Popover & Dropdown */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(210 90% 48%), hsl(180 65% 45%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(215 15% 98%));
+    --gradient-data: linear-gradient(90deg, hsl(210 90% 48% / 0.1), hsl(180 65% 45% / 0.1));
+
+    /* Shadows */
+    --shadow-card: 0 2px 10px hsl(var(--card-shadow));
+    --shadow-card-hover: 0 8px 30px hsl(var(--card-hover-shadow));
+    --shadow-hero: 0 20px 60px hsl(210 90% 48% / 0.2);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --radius: 12px;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark mode for data platform */
+    --background: 215 25% 8%;
+    --foreground: 215 15% 92%;
+
+    --card: 215 25% 10%;
+    --card-foreground: 215 15% 92%;
+    --card-shadow: 0 0% 0% / 0.3;
+    --card-hover-shadow: 0 0% 0% / 0.5;
+
+    --primary: 210 90% 58%;
+    --primary-foreground: 215 25% 8%;
+    --primary-glow: 210 90% 68%;
+    --primary-muted: 210 90% 58% / 0.15;
+
+    --secondary: 180 65% 55%;
+    --secondary-foreground: 215 25% 8%;
+    --secondary-muted: 180 65% 55% / 0.15;
+
+    --success: 150 60% 55%;
+    --success-foreground: 215 25% 8%;
+    --success-muted: 150 60% 55% / 0.15;
+
+    --muted: 215 25% 15%;
+    --muted-foreground: 215 15% 65%;
+    --accent: 215 25% 12%;
+    --accent-foreground: 215 15% 85%;
+
+    --border: 215 25% 18%;
+    --input: 215 25% 18%;
+    --ring: 210 90% 58%;
+    --destructive: 0 75% 65%;
+    --destructive-foreground: 215 25% 8%;
+
+    /* Popover & Dropdown - Dark Mode */
+    --popover: 215 25% 12%;
+    --popover-foreground: 215 15% 92%;
+
+    /* Dark gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(210 90% 58%), hsl(180 65% 55%));
+    --gradient-card: linear-gradient(145deg, hsl(215 25% 10%), hsl(215 25% 12%));
+    --gradient-data: linear-gradient(90deg, hsl(210 90% 58% / 0.1), hsl(180 65% 55% / 0.1));
+
+    /* Dark shadows */
+    --shadow-card: 0 2px 10px hsl(var(--card-shadow));
+    --shadow-card-hover: 0 8px 30px hsl(var(--card-hover-shadow));
+    --shadow-hero: 0 20px 60px hsl(210 90% 58% / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .data-card {
+    @apply bg-card border border-border rounded-xl transition-all duration-300;
+    box-shadow: var(--shadow-card);
+  }
+
+  .data-card:hover {
+    @apply -translate-y-1;
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+
+  .gradient-data {
+    background: var(--gradient-data);
+  }
+}

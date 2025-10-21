@@ -143,14 +143,13 @@ const Index = () => {
 
         <div className="relative container mx-auto px-6 py-24 lg:py-32">
           <div className="max-w-4xl mx-auto text-center text-black">
-            <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight">
-              Discover Open Data
-              <span className="block text-3xl lg:text-5xl font-normal mt-2 opacity-90">For Everyone</span>
+            <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight font-outfit ">
+              Data untuk Keputusan 
+              <span className="block text-3xl lg:text-5xl font-normal mt-2 opacity-90 italic">yang Lebih Baik</span>
             </h1>
 
             <p className="text-xl lg:text-2xl mb-8 opacity-90 leading-relaxed">
-              Access thousands of open datasets from government, research institutions, and organizations worldwide.
-              Find the data you need to power your projects.
+             Temukan, telusuri, dan gunakan dataset resmi — gratis untuk publik.
             </p>
 
             <div className="mb-12">
@@ -185,7 +184,7 @@ const Index = () => {
             <p className="text-muted-foreground text-lg">Explore datasets organized by topic and domain</p>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-4">
             {themes.map((theme) => {
               const count = datasets.filter((d) =>
                 d.themes.some((t) => t.toLowerCase() === theme.name.toLowerCase()),
@@ -196,12 +195,12 @@ const Index = () => {
                   variant="outline"
                   size="lg"
                   onClick={() => handleSearch("", { theme: theme.name })}
-                  className="gap-3 h-auto py-4 px-6 flex-col"
+                  className="w-48 h-auto py-6 px-4 flex-col text-lg justify-start"
                 >
                   {theme.icon_url ? (
-                    <img src={theme.icon_url} alt={theme.name} className="w-10 h-10 object-contain" />
+                    <img src={theme.icon_url} alt={theme.name} className="w-14 h-14 object-contain" />
                   ) : (
-                    <Globe className="w-10 h-10" />
+                    <Globe className="w-14 h-14" />
                   )}
                   <div className="flex items-center gap-2">
                     {theme.name}

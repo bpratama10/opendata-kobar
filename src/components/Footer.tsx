@@ -4,17 +4,23 @@ import { Database, Mail, Github, Twitter } from "lucide-react";
 export const Footer = () => {
   return (
     <div className="relative container mx-auto px-6 py-16">
-      <div className="bg-card/95 backdrop-blur-sm rounded-2xl border shadow-lg p-8 md:p-12 max-w-5xl mx-auto">
+      <div className="bg-card/95 backdrop-blur-sm rounded-2xl border shadow-lg p-8 md:p-12 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Database className="w-6 h-6 text-primary" />
-              <span className="text-xl font-bold">OpenData</span>
+              <img 
+                src="/src/assets/lambang_opt.png" 
+                alt="Lambang OPT" 
+                className="w-10 h-10 object-contain" 
+              />              
+              <span className="font-outfit text-lg font-bold">Open Data
+                <span className="text-xs font-outfit font-thin block">Kabupaten Kotawaringin Barat</span>
+              </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Discover and access open datasets from around the world. 
-              Empowering research, innovation, and transparency.
+              Dinas Komunikasi Informatika, Statistik dan Persandian Kabupaten Kotawaringin Barat
+              Jl. Sutan Syahrir No. 62, Pangkalan Bun, Kode Pos 74112
             </p>
           </div>
 
@@ -86,7 +92,7 @@ export const Footer = () => {
 
         {/* Bottom Bar */}
         <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} OpenData Platform. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Dinas Komunikasi Informatika, Statistik dan Persandian Kabupaten Kotawaringin Barat</p>
         </div>
       </div>
     </div>

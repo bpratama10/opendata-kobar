@@ -4,7 +4,7 @@ import { Database, Mail, Github, Twitter } from "lucide-react";
 export const Footer = () => {
   return (
     <div className="relative container mx-auto px-6 py-16">
-      <div className="bg-card/95 backdrop-blur-sm rounded-2xl border shadow-lg p-8 md:p-12 max-w-7xl mx-auto">
+      <div className="bg-card/95 backdrop-blur-sm rounded-2xl border shadow-lg p-8 md:p-10 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="space-y-4">
@@ -91,7 +91,7 @@ export const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
+        <div className="border-t mt-4 pt-4 text-center text-sm text-muted-foreground">
           <p>© {new Date().getFullYear()} Dinas Komunikasi Informatika, Statistik dan Persandian Kabupaten Kotawaringin Barat</p>
         </div>
       </div>

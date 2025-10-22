@@ -65,6 +65,12 @@ export const useDatasetDetail = (slug: string) => {
       const distributions = mainResource?.catalog_distributions || [];
       const mainDistribution = distributions[0];
 
+      // Calculate download count using the aggregate function
+      const { data: downloadCountData, error: downloadCountError } = await supabase
+        .rpc('get_dataset_download_count', { dataset_id_param: data.id });
+
+      const downloadCount = downloadCountError ? 0 : (downloadCountData || 0);
+
       const transformedDataset: Dataset = {
         id: data.id,
         slug: data.slug,
@@ -73,7 +79,7 @@ export const useDatasetDetail = (slug: string) => {
         abstract: data.abstract,
         tags,
         themes,
-        downloadCount: 0, // TODO: Calculate from telemetry_downloads
+        downloadCount,
         lastUpdated: new Date(data.updated_at).toLocaleDateString(),
         size: mainDistribution?.byte_size ? `${(mainDistribution.byte_size / 1024 / 1024).toFixed(1)} MB` : "Unknown",
         format: mainDistribution?.media_type || "Various",

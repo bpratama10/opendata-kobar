@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Download,
@@ -24,6 +25,8 @@ import { useDatasetDetail } from "@/hooks/useDatasetDetail";
 import { DatasetTable } from "@/components/DatasetTable";
 import { DatasetInfographic } from "@/components/DatasetInfographic";
 import { Footer } from "@/components/Footer";
+import { supabase } from "@/integrations/supabase/client";
+import { useDatasetTableData } from "@/hooks/useDatasetTableData";
 
 const DatasetDetail = () => {
   const { slug } = useParams();
@@ -31,6 +34,240 @@ const DatasetDetail = () => {
   const { toast } = useToast();
 
   const { dataset, loading, error } = useDatasetDetail(slug || "");
+  const { indicators, dataPoints, columns } = useDatasetTableData(dataset?.id || "");
+  const sessionIdRef = useRef<string | null>(null);
+
+  const getDownloadSessionId = () => {
+    if (sessionIdRef.current) {
+      return sessionIdRef.current;
+    }
+
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    let stored = window.localStorage.getItem("download_session_id");
+
+    if (!stored) {
+      if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        stored = crypto.randomUUID();
+      } else {
+        stored = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      }
+      window.localStorage.setItem("download_session_id", stored);
+    }
+
+    sessionIdRef.current = stored;
+    return stored;
+  };
+
+  // Track page view when dataset loads
+  useEffect(() => {
+    const trackView = async () => {
+      if (dataset?.id) {
+        try {
+          await supabase.from('telemetry_views').insert({
+            dataset_id: dataset.id,
+            user_agent: navigator.userAgent,
+            referrer: document.referrer || null,
+            session_id: sessionStorage.getItem('session_id') || null,
+          });
+        } catch (error) {
+          console.error('Failed to track view:', error);
+        }
+      }
+    };
+
+    trackView();
+  }, [dataset?.id]);
+
+  const generateCSV = (indicators: Array<{ id: string; label: string; unit: string; code: string }>,
+                       dataPoints: Array<{ indicator_id: string; period_start: string; value: number; qualifier: string }>,
+                       columns: Array<{ id: string; column_label: string; period_start: string }>,
+                       datasetTitle: string) => {
+    if (indicators.length === 0) return '';
+
+    // CSV Header row
+    const headers = ['Indicator', 'Unit', 'Code', ...columns.map(col => col.column_label)];
+
+    // Transform data rows
+    const rows = indicators.map(indicator => {
+      const row = [
+        indicator.label || '',
+        indicator.unit || '',
+        indicator.code || ''
+      ];
+
+      // Add data for each time period
+      columns.forEach(column => {
+        const dataPoint = dataPoints.find(dp =>
+          dp.indicator_id === indicator.id &&
+          dp.period_start === column.period_start
+        );
+
+        if (dataPoint) {
+          const value = dataPoint.value?.toLocaleString() || '';
+          const qualifier = dataPoint.qualifier && dataPoint.qualifier !== 'OFFICIAL' ? ` (${dataPoint.qualifier})` : '';
+          row.push(value + qualifier);
+        } else {
+          row.push('');
+        }
+      });
+
+      return row;
+    });
+
+    // Combine headers and rows
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    return csvContent;
+  };
+
+  const downloadCSV = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!dataset) return;
+
+    try {
+      let csvContent = '';
+      let csvFilename = `${dataset.slug}.csv`;
+
+      // Use the properly loaded table data from useDatasetTableData hook
+      if (indicators && indicators.length > 0) {
+        // We have actual data - create CSV with real data
+        csvContent = generateCSV(
+          indicators.map(ind => ({ id: ind.id, label: ind.label, unit: ind.unit, code: ind.code })),
+          dataPoints.map(dp => ({ indicator_id: dp.indicator_id, period_start: dp.period_start, value: dp.value, qualifier: dp.qualifier })),
+          columns.map(col => ({ id: col.id, column_label: col.column_label, period_start: col.period_start })),
+          dataset.title
+        );
+      }
+
+      if (!csvContent) {
+        // Fallback: Create CSV with basic info about the dataset (metadata only)
+        console.log('No table data found, creating metadata CSV');
+
+        const headers = ['Dataset Field', 'Value'];
+        const rows = [
+          ['Title', dataset.title || ''],
+          ['Description', dataset.description || ''],
+          ['Source', dataset.source || ''],
+          ['Category', dataset.category || ''],
+          ['Format', dataset.format || ''],
+          ['Size', dataset.size || ''],
+          ['Last Updated', dataset.lastUpdated || ''],
+          ['Download Count', dataset.downloadCount.toString() || '0'],
+          ['Source Email', dataset.contact_email || ''],
+          ['Tags', dataset.tags?.join(', ') || ''],
+          ['Language', dataset.language || ''],
+          ['Classification', dataset.classification_code || '']
+        ];
+
+        csvContent = [headers, ...rows]
+          .map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(','))
+          .join('\n');
+
+        csvFilename = `${dataset.slug}-metadata.csv`;
+      }
+
+      // Find the primary distribution for download tracking
+      const { data: resources } = await supabase
+        .from('catalog_resources')
+        .select(`
+          id,
+          name,
+          catalog_distributions (
+            id,
+            version,
+            media_type
+          )
+        `)
+        .eq('dataset_id', dataset.id)
+        .limit(1);
+
+      const mainResource = resources?.[0];
+      const mainDistribution = mainResource?.catalog_distributions?.[0];
+
+      // Track download in telemetry with correct channel enum value
+      if (mainDistribution?.id) {
+        const sessionId = getDownloadSessionId();
+        const telemetryPayload: {
+          distribution_id: string;
+          channel: 'WEB';
+          client_info: {
+            user_agent: string;
+            referrer: string | null;
+            session_id?: string | null;
+          };
+          session_id?: string;
+        } = {
+          distribution_id: mainDistribution.id,
+          channel: 'WEB',
+          client_info: {
+            user_agent: navigator.userAgent,
+            referrer: document.referrer || null,
+            session_id: sessionId,
+          },
+        };
+
+        if (sessionId) {
+          telemetryPayload.session_id = sessionId;
+        }
+
+        const { error: telemetryError } = await supabase
+          .from('telemetry_downloads')
+          .insert(telemetryPayload);
+
+        if (telemetryError) {
+          const message = telemetryError.message?.toLowerCase() ?? '';
+          const isCooldown = message.includes('row-level security') || message.includes('can_log_download') || message.includes('cooldown');
+          if (!isCooldown) {
+            throw telemetryError;
+          } else {
+            console.info('Download already logged in the last 30 minutes for this session.');
+          }
+        }
+      }
+
+      // Download the CSV file
+      downloadCSV(csvContent, csvFilename);
+
+      toast({
+        title: "Download Complete",
+        description: `Downloaded ${dataset.title} as CSV file.`,
+      });
+    } catch (error) {
+      console.error('Failed to download dataset:', error);
+      toast({
+        title: "Download Error",
+        description: `Failed to download dataset: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBookmark = () => {
+    toast({
+      title: "Bookmarked",
+      description: "Dataset saved to your bookmarks",
+    });
+  };
 
   if (loading) {
     return (
@@ -51,20 +288,6 @@ const DatasetDetail = () => {
       </div>
     );
   }
-
-  const handleDownload = () => {
-    toast({
-      title: "Download Started",
-      description: `Downloading ${dataset.title}...`,
-    });
-  };
-
-  const handleBookmark = () => {
-    toast({
-      title: "Bookmarked",
-      description: "Dataset saved to your bookmarks",
-    });
-  };
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);

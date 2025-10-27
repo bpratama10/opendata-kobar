@@ -7,7 +7,16 @@ interface DatasetInfographicProps {
   datasetId: string;
 }
 
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))'];
+const COLORS = [
+  '#215044',
+  '#007187',
+  '#9FC4CC',
+  '#FECD00',
+  '#FC8073',
+  '#6CCA00',
+  '#FA4B23',
+  '#7A3133',
+];
 
 export const DatasetInfographic = ({ datasetId }: DatasetInfographicProps) => {
   const { indicators, dataPoints, columns, loading, error } = useDatasetTableData(datasetId);

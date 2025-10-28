@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Database, Mail, Github, Twitter } from "lucide-react";
+import lambangfooter from "@/assets/lambang_opt.png";
 
 export const Footer = () => {
   return (
@@ -10,7 +11,7 @@ export const Footer = () => {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <img 
-                src="/src/assets/lambang_opt.png" 
+                src={lambangfooter}
                 alt="Lambang OPT" 
                 className="w-10 h-10 object-contain" 
               />              

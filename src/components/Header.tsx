@@ -10,6 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import lambangheader from "@/assets/lambang_opt.png";
+import logo from "@/assets/logo.png";
+
 
 export const Header = () => {
   const { user, profile, canAccessAdmin, orgRoles } = useAuth();
@@ -38,7 +41,7 @@ export const Header = () => {
 <div className="bg-gray-100 border-t border-b">
         <div className="container mx-auto px-6 py-1.5 flex items-center justify-start text-xs text-gray-600">
           <img 
-                src="/src/assets/lambang_opt.png" 
+                src={lambangheader}
                 alt="Lambang OPT" 
                 className="w-4 h-4 object-contain"  
               /> 
@@ -66,8 +69,8 @@ export const Header = () => {
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <img 
-                src="/src/assets/logo.png" 
-                alt="Lambang OPT" 
+                src={logo}
+                alt="Logo Open Data" 
                 className="w-10 h-10 object-contain"  
               />  
           <h1 className="text-xl font-outfit font-bold cursor-pointer" onClick={() => navigate("/")}>Open Data</h1>

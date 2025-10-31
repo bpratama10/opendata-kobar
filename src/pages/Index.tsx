@@ -144,7 +144,7 @@ const Index = () => {
         <div className="relative container mx-auto px-6 py-24 lg:py-32">
           <div className="max-w-4xl mx-auto text-center text-black">
             <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight font-outfit ">
-              Data untuk Keputusan 1
+              Data untuk Keputusan
               <span className="block text-3xl lg:text-5xl font-normal mt-2 opacity-90 italic">yang Lebih Baik</span>
             </h1>
 

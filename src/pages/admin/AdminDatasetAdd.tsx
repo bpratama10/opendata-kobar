@@ -118,7 +118,10 @@ export default function AdminDatasetAdd() {
   const fetchOrganizations = async () => {
     const { data, error } = await supabase.from("org_organizations").select("id, name, short_name");
     if (!error && data) {
+      console.log("📋 Loaded organizations:", data.length);
       setOrganizations(data);
+    } else {
+      console.error("❌ Error loading organizations:", error);
     }
   };
 
@@ -469,14 +472,24 @@ export default function AdminDatasetAdd() {
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {(hasAdminOrWalidata 
-                      ? organizations 
-                      : organizations.filter(org => org.id === userOrgId)
-                    ).map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.short_name || org.name}
-                      </SelectItem>
-                    ))}
+                    {(() => {
+                      const filteredOrgs = hasAdminOrWalidata 
+                        ? organizations 
+                        : organizations.filter(org => org.id === userOrgId);
+                      
+                      console.log("🔍 Dropdown render:", {
+                        hasAdminOrWalidata,
+                        userOrgId,
+                        totalOrgs: organizations.length,
+                        filteredOrgs: filteredOrgs.length
+                      });
+                      
+                      return filteredOrgs.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.short_name || org.name}
+                        </SelectItem>
+                      ));
+                    })()}
                   </SelectContent>
                 </Select>
                 {!orgRoles.some((role) => ["ADMIN", "WALIDATA"].includes(role.code)) && formData.selected_org_id && (

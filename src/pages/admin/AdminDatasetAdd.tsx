@@ -85,6 +85,9 @@ export default function AdminDatasetAdd() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [keywordInput, setKeywordInput] = useState("");
 
+  // Check if user has ADMIN or WALIDATA role
+  const hasAdminOrWalidata = orgRoles.some((role) => ["ADMIN", "WALIDATA"].includes(role.code));
+
   useEffect(() => {
     fetchLicenses();
     fetchUpdateFrequencies();

@@ -458,9 +458,9 @@ export default function AdminDatasetAdd() {
                 <Select
                   value={formData.selected_org_id}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, selected_org_id: value }))}
-                  disabled={hasAdminOrWalidata ? false : !!userOrgId}
+                  disabled={false}
                 >
-                  <SelectTrigger className={hasAdminOrWalidata ? "" : (userOrgId ? "bg-muted cursor-not-allowed" : "")}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Pilih organisasi">
                       {formData.selected_org_id && organizations.find((org) => org.id === formData.selected_org_id)
                         ? organizations.find((org) => org.id === formData.selected_org_id)?.short_name ||
@@ -469,7 +469,10 @@ export default function AdminDatasetAdd() {
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {organizations.map((org) => (
+                    {(hasAdminOrWalidata 
+                      ? organizations 
+                      : organizations.filter(org => org.id === userOrgId)
+                    ).map((org) => (
                       <SelectItem key={org.id} value={org.id}>
                         {org.short_name || org.name}
                       </SelectItem>

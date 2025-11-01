@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Search, Plus, Edit, Eye, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DatasetPreviewDialog } from "./DatasetPreviewDialog";
+import { UnpublishRequestDialog } from "./UnpublishRequestDialog";
+import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
 
 interface Dataset {
   id: string;
@@ -28,23 +31,48 @@ interface Dataset {
   temporal_start: string;
   temporal_end: string;
   keywords: any; // Json type from Supabase
+  unpublish_request_reason?: string;
 }
 
 export function DatasetManagement() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { permissions, isProdusen } = useRoleAccess();
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [previewDataset, setPreviewDataset] = useState<Dataset | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [unpublishDialogOpen, setUnpublishDialogOpen] = useState(false);
+  const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
+  const [userOrgId, setUserOrgId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchUserOrg = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("org_users")
+        .select("org_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (data) setUserOrgId(data.org_id);
+    };
+    fetchUserOrg();
+  }, [user]);
 
   const fetchDatasets = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('catalog_metadata')
-        .select('*')
-        .order('updated_at', { ascending: false });
+        .select('*');
+      
+      // Filter by org for PRODUSEN users
+      if (isProdusen && userOrgId) {
+        query = query.eq('publisher_org_id', userOrgId);
+      }
+      
+      const { data, error } = await query.order('updated_at', { ascending: false });
 
       if (error) {
         toast({
@@ -64,8 +92,10 @@ export function DatasetManagement() {
   };
 
   useEffect(() => {
-    fetchDatasets();
-  }, []);
+    if (isProdusen ? userOrgId !== null : true) {
+      fetchDatasets();
+    }
+  }, [userOrgId, isProdusen]);
 
   const updatePublicationStatus = async (id: string, newStatus: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED') => {
     try {
@@ -155,19 +185,38 @@ export function DatasetManagement() {
       );
     }
     
-    // WALIDATA/ADMIN can unpublish
+    // Unpublish handling based on role
     if (dataset.publication_status === 'PUBLISHED') {
-      actions.push(
-        <Button
-          key="unpublish"
-          variant="ghost"
-          size="sm"
-          onClick={() => updatePublicationStatus(dataset.id, 'DRAFT')}
-          title="Unpublish dataset"
-        >
-          Unpublish
-        </Button>
-      );
+      if (isProdusen) {
+        // PRODUSEN requests unpublish
+        actions.push(
+          <Button
+            key="request-unpublish"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSelectedDataset(dataset);
+              setUnpublishDialogOpen(true);
+            }}
+            title="Request unpublish"
+          >
+            Request Unpublish
+          </Button>
+        );
+      } else if (permissions.canPublishDatasets) {
+        // ADMIN/WALIDATA can unpublish directly
+        actions.push(
+          <Button
+            key="unpublish"
+            variant="ghost"
+            size="sm"
+            onClick={() => updatePublicationStatus(dataset.id, 'DRAFT')}
+            title="Unpublish dataset"
+          >
+            Unpublish
+          </Button>
+        );
+      }
     }
     
     return actions;
@@ -246,11 +295,18 @@ export function DatasetManagement() {
                     <Badge variant="outline">{dataset.classification_code}</Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant={getStatusBadgeVariant(dataset.publication_status)}>
-                        {dataset.publication_status.replace('_', ' ')}
-                      </Badge>
-                      {getStatusActions(dataset)}
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={getStatusBadgeVariant(dataset.publication_status)}>
+                          {dataset.publication_status.replace('_', ' ')}
+                        </Badge>
+                        {getStatusActions(dataset)}
+                      </div>
+                      {dataset.unpublish_request_reason && permissions.canPublishDatasets && (
+                        <div className="text-xs text-muted-foreground italic">
+                          Unpublish request: {dataset.unpublish_request_reason}
+                        </div>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -298,6 +354,13 @@ export function DatasetManagement() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         dataset={previewDataset}
+      />
+      
+      <UnpublishRequestDialog
+        open={unpublishDialogOpen}
+        onOpenChange={setUnpublishDialogOpen}
+        dataset={selectedDataset}
+        onSuccess={fetchDatasets}
       />
     </div>
   );

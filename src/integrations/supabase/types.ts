@@ -195,6 +195,7 @@ export type Database = {
           temporal_end: string | null
           temporal_start: string | null
           title: string
+          unpublish_request_reason: string | null
           update_frequency_code: string | null
           updated_at: string
           updated_by: string | null
@@ -227,6 +228,7 @@ export type Database = {
           temporal_end?: string | null
           temporal_start?: string | null
           title: string
+          unpublish_request_reason?: string | null
           update_frequency_code?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -259,6 +261,7 @@ export type Database = {
           temporal_end?: string | null
           temporal_start?: string | null
           title?: string
+          unpublish_request_reason?: string | null
           update_frequency_code?: string | null
           updated_at?: string
           updated_by?: string | null

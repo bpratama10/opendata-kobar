@@ -137,7 +137,7 @@ export default function AdminDatasetAdd() {
 
     console.log("🔍 Fetching org for user:", user.id);
 
-    const { data, error } = await supabase.from("org_users").select("org_id").eq("id", user.id).single();
+    const { data, error } = await supabase.from("org_users").select("org_id").eq("id", user.id).maybeSingle();
 
     if (error) {
       console.error("❌ Error fetching user org:", error);

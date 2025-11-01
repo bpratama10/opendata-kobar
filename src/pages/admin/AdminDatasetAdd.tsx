@@ -93,10 +93,10 @@ export default function AdminDatasetAdd() {
   }, []);
 
   useEffect(() => {
-    if (user?.id && orgRoles.length > 0) {
+    if (user?.id) {
       fetchUserOrg();
     }
-  }, [user?.id, orgRoles]);
+  }, [user?.id]);
 
   const fetchLicenses = async () => {
     const { data, error } = await supabase.from("lisensi").select("code, name");
@@ -129,7 +129,7 @@ export default function AdminDatasetAdd() {
   const fetchUserOrg = async () => {
     if (!user?.id) return;
 
-    console.log("🔍 Fetching org for user:", user.id, "Roles:", orgRoles.map(r => r.code));
+    console.log("🔍 Fetching org for user:", user.id);
 
     const { data, error } = await supabase.from("org_users").select("org_id").eq("id", user.id).single();
 
@@ -142,15 +142,9 @@ export default function AdminDatasetAdd() {
       console.log("✅ Found org_id:", data.org_id);
       setUserOrgId(data.org_id);
       
-      // Only ADMIN and WALIDATA can freely select organization
-      // PRODUSEN and KOORDINATOR are auto-assigned to their org
-      const hasAdminOrWalidata = orgRoles.some((role) => ["ADMIN", "WALIDATA"].includes(role.code));
-      console.log("🔐 Has Admin/Walidata:", hasAdminOrWalidata);
-      
-      if (!hasAdminOrWalidata) {
-        console.log("🔒 Auto-assigning org to PRODUSEN user");
-        setFormData((prev) => ({ ...prev, selected_org_id: data.org_id }));
-      }
+      // Auto-assign org immediately for all non-admin/walidata users
+      setFormData((prev) => ({ ...prev, selected_org_id: data.org_id }));
+      console.log("🔒 Auto-assigned org_id to form");
     } else {
       console.warn("⚠️ No org_id found for user");
     }
@@ -461,9 +455,9 @@ export default function AdminDatasetAdd() {
                 <Select
                   value={formData.selected_org_id}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, selected_org_id: value }))}
-                  disabled={!orgRoles.some((role) => ["ADMIN", "WALIDATA"].includes(role.code))}
+                  disabled={hasAdminOrWalidata ? false : !!userOrgId}
                 >
-                  <SelectTrigger className={!orgRoles.some((role) => ["ADMIN", "WALIDATA"].includes(role.code)) ? "bg-muted cursor-not-allowed" : ""}>
+                  <SelectTrigger className={hasAdminOrWalidata ? "" : (userOrgId ? "bg-muted cursor-not-allowed" : "")}>
                     <SelectValue placeholder="Pilih organisasi">
                       {formData.selected_org_id && organizations.find((org) => org.id === formData.selected_org_id)
                         ? organizations.find((org) => org.id === formData.selected_org_id)?.short_name ||

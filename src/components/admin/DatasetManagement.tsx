@@ -297,14 +297,20 @@ export function DatasetManagement() {
                   <TableCell>
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2">
-                        <Badge variant={getStatusBadgeVariant(dataset.publication_status)}>
-                          {dataset.publication_status.replace('_', ' ')}
-                        </Badge>
+                        {dataset.unpublish_request_reason && dataset.publication_status === 'PUBLISHED' ? (
+                          <Badge variant="outline" className="border-yellow-500 text-yellow-700 dark:text-yellow-500">
+                            UNPUBLISH REVIEW
+                          </Badge>
+                        ) : (
+                          <Badge variant={getStatusBadgeVariant(dataset.publication_status)}>
+                            {dataset.publication_status.replace('_', ' ')}
+                          </Badge>
+                        )}
                         {getStatusActions(dataset)}
                       </div>
                       {dataset.unpublish_request_reason && permissions.canPublishDatasets && (
-                        <div className="text-xs text-muted-foreground italic">
-                          Unpublish request: {dataset.unpublish_request_reason}
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <span className="font-semibold">Reason:</span> {dataset.unpublish_request_reason}
                         </div>
                       )}
                     </div>

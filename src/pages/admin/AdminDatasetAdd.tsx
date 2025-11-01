@@ -93,10 +93,10 @@ export default function AdminDatasetAdd() {
   }, []);
 
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && orgRoles.length > 0) {
       fetchUserOrg();
     }
-  }, [user?.id]);
+  }, [user?.id, orgRoles]);
 
   const fetchLicenses = async () => {
     const { data, error } = await supabase.from("lisensi").select("code, name");
@@ -129,16 +129,30 @@ export default function AdminDatasetAdd() {
   const fetchUserOrg = async () => {
     if (!user?.id) return;
 
+    console.log("🔍 Fetching org for user:", user.id, "Roles:", orgRoles.map(r => r.code));
+
     const { data, error } = await supabase.from("org_users").select("org_id").eq("id", user.id).single();
 
-    if (!error && data?.org_id) {
+    if (error) {
+      console.error("❌ Error fetching user org:", error);
+      return;
+    }
+
+    if (data?.org_id) {
+      console.log("✅ Found org_id:", data.org_id);
       setUserOrgId(data.org_id);
+      
       // Only ADMIN and WALIDATA can freely select organization
       // PRODUSEN and KOORDINATOR are auto-assigned to their org
       const hasAdminOrWalidata = orgRoles.some((role) => ["ADMIN", "WALIDATA"].includes(role.code));
+      console.log("🔐 Has Admin/Walidata:", hasAdminOrWalidata);
+      
       if (!hasAdminOrWalidata) {
+        console.log("🔒 Auto-assigning org to PRODUSEN user");
         setFormData((prev) => ({ ...prev, selected_org_id: data.org_id }));
       }
+    } else {
+      console.warn("⚠️ No org_id found for user");
     }
   };
 

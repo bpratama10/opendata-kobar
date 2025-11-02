@@ -5,6 +5,7 @@ import { TrendingUp, Loader2, PieChart as PieChartIcon } from "lucide-react";
 
 interface DatasetInfographicProps {
   datasetId: string;
+  datasetTitle?: string;
 }
 
 const COLORS = [
@@ -18,7 +19,7 @@ const COLORS = [
   '#7A3133',
 ];
 
-export const DatasetInfographic = ({ datasetId }: DatasetInfographicProps) => {
+export const DatasetInfographic = ({ datasetId, datasetTitle }: DatasetInfographicProps) => {
   const { indicators, dataPoints, columns, loading, error } = useDatasetTableData(datasetId);
 
   if (loading) {
@@ -60,18 +61,20 @@ export const DatasetInfographic = ({ datasetId }: DatasetInfographicProps) => {
     );
   }
 
-  // Prepare data for bar chart (first indicator over time)
-  const firstIndicator = indicators[0];
+  // Prepare data for bar chart (total of all indicators over time)
   const chartData = columns.map(column => {
-    const dataPoint = dataPoints.find(dp => 
-      dp.indicator_id === firstIndicator?.id && 
-      dp.period_start === column.period_start
-    );
+    // Sum all indicator values for this time period
+    const total = indicators.reduce((sum, indicator) => {
+      const dataPoint = dataPoints.find(dp => 
+        dp.indicator_id === indicator.id && 
+        dp.period_start === column.period_start
+      );
+      return sum + (dataPoint?.value || 0);
+    }, 0);
     
     return {
       year: column.column_label,
-      value: dataPoint?.value || 0,
-      qualifier: dataPoint?.qualifier
+      value: total
     };
   });
 
@@ -112,9 +115,9 @@ export const DatasetInfographic = ({ datasetId }: DatasetInfographicProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
-        {/* Primary Indicator Trend Bar Chart */}
+        {/* Total Indicators Trend Bar Chart */}
         <div>
-          <h4 className="text-sm font-semibold mb-4">{firstIndicator?.label} Over Time</h4>
+          <h4 className="text-sm font-semibold mb-4">{datasetTitle || 'Dataset'} Over Time</h4>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
@@ -128,9 +131,9 @@ export const DatasetInfographic = ({ datasetId }: DatasetInfographicProps) => {
                   tickFormatter={(value) => value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : value.toLocaleString()}
                 />
                 <Tooltip 
-                  formatter={(value: number, name) => [
-                    `${value.toLocaleString()} ${firstIndicator?.unit || ''}`,
-                    firstIndicator?.label
+                  formatter={(value: number) => [
+                    value.toLocaleString(),
+                    'Total'
                   ]}
                   labelFormatter={(label) => `Period ${label}`}
                   contentStyle={{

@@ -313,33 +313,57 @@ export type Database = {
       }
       catalog_resources: {
         Row: {
+          aggregation_method: string | null
+          chart_type: string | null
           created_at: string
           dataset_id: string
           description: string | null
+          frequency: string | null
           id: string
+          indicator_title: string | null
+          interpretation: string | null
+          is_timeseries: boolean | null
           name: string
           resource_type: Database["public"]["Enums"]["resource_type"]
           schema_json: Json | null
+          time_dimension: string | null
+          unit: string | null
           updated_at: string
         }
         Insert: {
+          aggregation_method?: string | null
+          chart_type?: string | null
           created_at?: string
           dataset_id: string
           description?: string | null
+          frequency?: string | null
           id?: string
+          indicator_title?: string | null
+          interpretation?: string | null
+          is_timeseries?: boolean | null
           name: string
           resource_type: Database["public"]["Enums"]["resource_type"]
           schema_json?: Json | null
+          time_dimension?: string | null
+          unit?: string | null
           updated_at?: string
         }
         Update: {
+          aggregation_method?: string | null
+          chart_type?: string | null
           created_at?: string
           dataset_id?: string
           description?: string | null
+          frequency?: string | null
           id?: string
+          indicator_title?: string | null
+          interpretation?: string | null
+          is_timeseries?: boolean | null
           name?: string
           resource_type?: Database["public"]["Enums"]["resource_type"]
           schema_json?: Json | null
+          time_dimension?: string | null
+          unit?: string | null
           updated_at?: string
         }
         Relationships: [

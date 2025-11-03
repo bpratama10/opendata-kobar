@@ -1,1623 +1,751 @@
-# 📊 Database Schema Documentation
-
-## 🏗️ Open Data Platform - Complete Database Reference
-
-> **Version**: 2.0  
-> **Last Updated**: 2024  
-> **Architecture**: Multi-tenant, Role-based Access Control (RBAC)  
-> **Security**: Row-Level Security (RLS) on all tables
-
----
-
-## 📑 Table of Contents
-
-1. [Overview](#overview)
-2. [Architecture Principles](#architecture-principles)
-3. [Entity Relationship Diagrams](#entity-relationship-diagrams)
-4. [Core Data Tables](#core-data-tables)
-5. [Reference & Lookup Tables](#reference--lookup-tables)
-6. [Organization & User Management](#organization--user-management)
-7. [Telemetry & Analytics](#telemetry--analytics)
-8. [Custom Types (Enums)](#custom-types-enums)
-9. [Database Functions](#database-functions)
-10. [Security Model](#security-model)
-11. [Query Examples](#query-examples)
-12. [Best Practices](#best-practices)
-13. [Migration Guide](#migration-guide)
-14. [Troubleshooting](#troubleshooting)
-
----
-
-## 📖 Overview
-
-The **Open Data Platform** database implements a comprehensive **data catalog system** with:
-
-- 🔐 **Multi-tenant architecture** with organization-level isolation
-- 👥 **Five-tier role hierarchy** (ADMIN, WALIDATA, KOORDINATOR, PRODUSEN, VIEWER)
-- 📦 **Dataset lifecycle management** (DRAFT → PENDING_REVIEW → PUBLISHED)
-- 🛡️ **Row-Level Security** on all tables
-- 📊 **Structured data storage** with indicators and time-series support
-- 📁 **File distribution tracking** with version control
-- 📈 **Analytics and audit logging**
-
----
-
-## 🎯 Architecture Principles
-
-### 1. **Security First**
-- ✅ All tables protected by RLS policies
-- ✅ Roles stored separately in `org_user_roles` (never in user tables)
-- ✅ SECURITY DEFINER functions prevent RLS recursion
-- ✅ Soft deletes preserve audit trails
-
-### 2. **Multi-Tenancy**
-- Organizations have hierarchical relationships (`parent_id`)
-- Users belong to organizations via `org_users.org_id`
-- Datasets are owned by organizations via `catalog_metadata.publisher_org_id`
-
-### 3. **Flexible Data Model**
-- Structured data via indicators × periods matrix
-- File-based distributions for any format
-- API and web resource types for external data
-
-### 4. **Audit & Compliance**
-- All significant actions logged in `telemetry_audit_events`
-- Downloads tracked in `telemetry_downloads`
-- Views tracked in `telemetry_views`
-- Timestamps on all mutable tables (`created_at`, `updated_at`)
-
----
-
-## 🗺️ Entity Relationship Diagrams
-
-### High-Level System Architecture
-
-```mermaid
-graph TB
-    subgraph "Authentication Layer"
-        AUTH[auth.users<br/>Supabase Auth]
-    end
-    
-    subgraph "User Management"
-        PROF[profiles<br/>User Profiles]
-        ORG_USERS[org_users<br/>Org Members]
-        USER_ROLES[org_user_roles<br/>User-Role Junction]
-        ROLES[org_roles<br/>Role Definitions]
-        ORGS[org_organizations<br/>Organizations]
-    end
-    
-    subgraph "Data Catalog"
-        META[catalog_metadata<br/>Datasets]
-        RES[catalog_resources<br/>Resources]
-        DIST[catalog_distributions<br/>Files/Versions]
-        TAGS[catalog_tags]
-        THEMES[catalog_themes]
-        CLASS[catalog_data_classifications]
-    end
-    
-    subgraph "Structured Data"
-        IND[data_indicators<br/>Row Dimensions]
-        COLS[data_table_view_columns<br/>Column Dimensions]
-        PTS[data_points<br/>Actual Values]
-    end
-    
-    subgraph "Telemetry"
-        VIEWS[telemetry_views]
-        DOWNLOADS[telemetry_downloads]
-        AUDIT[telemetry_audit_events]
-    end
-    
-    AUTH --> PROF
-    AUTH --> ORG_USERS
-    AUTH --> USER_ROLES
-    USER_ROLES --> ROLES
-    ORG_USERS --> ORGS
-    ORGS --> META
-    META --> RES
-    RES --> DIST
-    RES --> IND
-    RES --> COLS
-    IND --> PTS
-    DIST --> DOWNLOADS
-    META --> VIEWS
-    META -.-> TAGS
-    META -.-> THEMES
-    META -.-> CLASS
-```
-
-### Dataset Relationship Flow
-
-```mermaid
-graph LR
-    A[catalog_metadata<br/>Dataset] --> B[catalog_resources<br/>Resource]
-    B --> C[catalog_distributions<br/>File Distribution]
-    B --> D[data_indicators<br/>Row Indicator]
-    B --> E[data_table_view_columns<br/>Period Column]
-    D --> F[data_points<br/>Value]
-    E --> F
-    
-    style A fill:#e1f5ff
-    style B fill:#fff3e0
-    style C fill:#f3e5f5
-    style D fill:#e8f5e9
-    style E fill:#e8f5e9
-    style F fill:#fff9c4
-```
-
----
-
-## 📦 Core Data Tables
-
-### 1. `catalog_metadata` - Datasets
-
-**Purpose**: Central registry for all datasets in the platform.
-
-#### 📋 Schema
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PRIMARY KEY | Unique dataset identifier |
-| `title` | VARCHAR | NOT NULL | Dataset display title |
-| `slug` | VARCHAR | NOT NULL, UNIQUE | URL-friendly identifier |
-| `description` | TEXT | NULLABLE | Short description (~200 chars) |
-| `abstract` | TEXT | NULLABLE | Detailed description/methodology |
-| `source_name` | VARCHAR | NULLABLE | Data source organization |
-| `contact_email` | VARCHAR | NULLABLE | Maintainer contact email |
-| `language` | VARCHAR | DEFAULT 'id' | ISO 639-1 language code |
-| `classification_code` | ENUM | DEFAULT 'PUBLIC' | PUBLIC, INTERNAL, CONFIDENTIAL |
-| `publication_status` | ENUM | DEFAULT 'DRAFT' | DRAFT, PENDING_REVIEW, PUBLISHED |
-| `publisher_org_id` | UUID | FK → org_organizations | Publishing organization |
-| `license_code` | VARCHAR | FK → lisensi | Data license (e.g., CC-BY-4.0) |
-| `update_frequency_code` | VARCHAR | FK → freq_upd | Update frequency (DAILY, MONTHLY, etc.) |
-| `temporal_start` | DATE | NULLABLE | Coverage start date |
-| `temporal_end` | DATE | NULLABLE | Coverage end date |
-| `keywords` | JSONB | DEFAULT '[]' | Array of keyword strings |
-| `maintainers` | JSONB | DEFAULT '[]' | Array of maintainer strings |
-| `custom_fields` | JSONB | DEFAULT '{}' | Extensible metadata |
-| `created_by` | UUID | FK → auth.users | Creator user ID |
-| `updated_by` | UUID | FK → auth.users | Last modifier user ID |
-| `created_at` | TIMESTAMPTZ | NOT NULL | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | NOT NULL | Last update timestamp |
-| `last_updated_display` | TIMESTAMPTZ | NULLABLE | Display date for data freshness |
-| `deleted_at` | TIMESTAMPTZ | NULLABLE | Soft delete timestamp |
-
-#### 🔒 RLS Policies
-
-| Policy | Command | Condition |
-|--------|---------|-----------|
-| **Dataset viewing** | SELECT | Public: `publication_status = 'PUBLISHED' AND classification_code = 'PUBLIC'`<br/>OR authenticated: has_role('ADMIN/WALIDATA/KOORDINATOR') OR same org |
-| **Dataset creation** | INSERT | Authenticated AND (ADMIN OR WALIDATA OR PRODUSEN in same org) |
-| **Dataset update** | UPDATE | Authenticated AND (ADMIN OR WALIDATA OR PRODUSEN in same org) AND status IN ('DRAFT', 'PENDING_REVIEW') |
-| **Dataset deletion** | DELETE | Same as update |
-
-#### 📌 Indexes
-
-```sql
-CREATE INDEX idx_catalog_metadata_slug ON catalog_metadata(slug);
-CREATE INDEX idx_catalog_metadata_publisher_org ON catalog_metadata(publisher_org_id);
-CREATE INDEX idx_catalog_metadata_publication_status ON catalog_metadata(publication_status);
-CREATE INDEX idx_catalog_metadata_deleted_at ON catalog_metadata(deleted_at) WHERE deleted_at IS NULL;
-```
-
-#### 💡 Usage Example
-
-```typescript
-// Create a new dataset
-const { data: dataset, error } = await supabase
-  .from('catalog_metadata')
-  .insert({
-    title: 'Population Statistics 2024',
-    slug: 'population-stats-2024',
-    description: 'Annual population data by region',
-    publisher_org_id: orgId,
-    classification_code: 'PUBLIC',
-    publication_status: 'DRAFT',
-    license_code: 'CC-BY-4.0',
-    update_frequency_code: 'ANNUALLY',
-    temporal_start: '2024-01-01',
-    temporal_end: '2024-12-31',
-    keywords: ['population', 'demographics', 'statistics'],
-    maintainers: ['data-team@example.com']
-  })
-  .select()
-  .single();
-
-// Query published datasets
-const { data: datasets } = await supabase
-  .from('catalog_metadata')
-  .select(`
-    *,
-    publisher_org:org_organizations(name, short_name),
-    resources:catalog_resources(count)
-  `)
-  .eq('publication_status', 'PUBLISHED')
-  .is('deleted_at', null)
-  .order('created_at', { ascending: false });
-```
-
----
-
-### 2. `catalog_resources` - Dataset Resources
-
-**Purpose**: Resources attached to datasets (tables, files, APIs, web links).
-
-#### 📋 Schema
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PRIMARY KEY | Unique resource identifier |
-| `dataset_id` | UUID | NOT NULL, FK → catalog_metadata | Parent dataset |
-| `name` | VARCHAR | NOT NULL | Resource display name |
-| `description` | TEXT | NULLABLE | Resource description |
-| `resource_type` | ENUM | NOT NULL | TABLE, FILE, API, WEB |
-| `schema_json` | JSONB | DEFAULT '{}' | Schema definition for TABLE type |
-| `created_at` | TIMESTAMPTZ | NOT NULL | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | NOT NULL | Last update timestamp |
-
-#### 🔒 RLS Policies
-
-Inherits policies from parent `catalog_metadata` (checks dataset permissions).
-
-#### 💡 Usage Example
-
-```typescript
-// Add a TABLE resource to a dataset
-const { data: resource } = await supabase
-  .from('catalog_resources')
-  .insert({
-    dataset_id: datasetId,
-    name: 'Population by Age Group',
-    description: 'Annual population counts disaggregated by age',
-    resource_type: 'TABLE',
-    schema_json: {
-      columns: [
-        { name: 'age_group', type: 'string' },
-        { name: 'count', type: 'integer' },
-        { name: 'year', type: 'integer' }
-      ]
-    }
-  })
-  .select()
-  .single();
-
-// Add a FILE resource
-const { data: fileResource } = await supabase
-  .from('catalog_resources')
-  .insert({
-    dataset_id: datasetId,
-    name: 'Full Dataset (CSV)',
-    description: 'Complete dataset in CSV format',
-    resource_type: 'FILE'
-  })
-  .select()
-  .single();
-```
-
----
-
-### 3. `catalog_distributions` - File Distributions
-
-**Purpose**: Physical file distributions with versioning and checksums.
-
-#### 📋 Schema
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PRIMARY KEY | Unique distribution identifier |
-| `resource_id` | UUID | NOT NULL, FK → catalog_resources | Parent resource |
-| `version` | VARCHAR | NOT NULL | Version string (e.g., "1.0", "2024-01") |
-| `media_type` | VARCHAR | NOT NULL | MIME type (e.g., "text/csv") |
-| `storage_uri` | VARCHAR | NULLABLE | Storage path or URL |
-| `byte_size` | BIGINT | NULLABLE | File size in bytes |
-| `checksum_sha256` | CHAR(64) | NULLABLE | SHA-256 checksum for integrity |
-| `availability` | ENUM | DEFAULT 'online' | online, offline, archived |
-| `created_at` | TIMESTAMPTZ | NOT NULL | Creation timestamp |
-
-#### 🔒 RLS Policies
-
-Inherits policies from parent resource/dataset.
-
-#### 💡 Usage Example
-
-```typescript
-// Add a file distribution
-const { data: distribution } = await supabase
-  .from('catalog_distributions')
-  .insert({
-    resource_id: resourceId,
-    version: '2024.1',
-    media_type: 'text/csv',
-    storage_uri: 'datasets/population-2024.csv',
-    byte_size: 15728640, // 15 MB
-    checksum_sha256: 'a3f5...',
-    availability: 'online'
-  })
-  .select()
-  .single();
-
-// Track download
-await supabase.from('telemetry_downloads').insert({
-  distribution_id: distribution.id,
-  user_id: userId,
-  channel: 'WEB',
-  client_info: {
-    user_agent: navigator.userAgent,
-    referrer: document.referrer
-  }
-});
-```
-
----
-
-### 4. `data_indicators` - Row Dimensions
-
-**Purpose**: Row indicators for structured data tables (e.g., "Total Population", "GDP", "Unemployment Rate").
-
-#### 📋 Schema
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PRIMARY KEY | Unique indicator identifier |
-| `resource_id` | UUID | NOT NULL, FK → catalog_resources | Parent resource (must be TABLE type) |
-| `code` | VARCHAR | NOT NULL | Indicator code (e.g., "POP_TOTAL") |
-| `label` | VARCHAR | NOT NULL | Display label |
-| `description` | TEXT | NULLABLE | Indicator definition |
-| `unit` | VARCHAR | NULLABLE | Unit of measurement (e.g., "persons", "%") |
-| `order_no` | INTEGER | DEFAULT 0 | Display order |
-| `is_active` | BOOLEAN | DEFAULT true | Active/archived flag |
-| `created_at` | TIMESTAMPTZ | NOT NULL | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | NOT NULL | Last update timestamp |
-
-#### 🔒 RLS Policies
-
-Inherits policies from parent resource/dataset.
-
-#### 💡 Usage Example
-
-```typescript
-// Create indicators for a population table
-const indicators = [
-  {
-    resource_id: resourceId,
-    code: 'POP_TOTAL',
-    label: 'Total Population',
-    description: 'Total resident population',
-    unit: 'persons',
-    order_no: 1
-  },
-  {
-    resource_id: resourceId,
-    code: 'POP_MALE',
-    label: 'Male Population',
-    unit: 'persons',
-    order_no: 2
-  },
-  {
-    resource_id: resourceId,
-    code: 'POP_FEMALE',
-    label: 'Female Population',
-    unit: 'persons',
-    order_no: 3
-  }
-];
-
-const { data } = await supabase
-  .from('data_indicators')
-  .insert(indicators)
-  .select();
-```
-
----
-
-### 5. `data_table_view_columns` - Period Columns
-
-**Purpose**: Column dimensions for time-series data (years, quarters, months, etc.).
-
-#### 📋 Schema
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PRIMARY KEY | Unique column identifier |
-| `resource_id` | UUID | NOT NULL, FK → catalog_resources | Parent resource |
-| `time_grain` | ENUM | NOT NULL | YEAR, QUARTER, MONTH, WEEK, DAY |
-| `period_start` | DATE | NOT NULL | Period start date |
-| `column_label` | VARCHAR | NOT NULL | Display label (e.g., "2024", "Q1 2024") |
-| `column_order` | INTEGER | DEFAULT 0 | Display order |
-| `is_hidden` | BOOLEAN | DEFAULT false | Hidden column flag |
-| `created_at` | TIMESTAMPTZ | NOT NULL | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | NOT NULL | Last update timestamp |
-
-#### 🔑 Unique Constraint
-
-```sql
-UNIQUE (resource_id, time_grain, period_start)
-```
-
-#### 💡 Usage Example
-
-```typescript
-// Create yearly columns for 2020-2024
-const years = [2020, 2021, 2022, 2023, 2024];
-const columns = years.map((year, index) => ({
-  resource_id: resourceId,
-  time_grain: 'YEAR',
-  period_start: `${year}-01-01`,
-  column_label: year.toString(),
-  column_order: index
-}));
-
-await supabase
-  .from('data_table_view_columns')
-  .insert(columns);
-```
-
----
-
-### 6. `data_points` - Actual Data Values
-
-**Purpose**: Stores actual data values at the intersection of indicators and periods.
-
-#### 📋 Schema
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PRIMARY KEY | Unique data point identifier |
-| `indicator_id` | UUID | NOT NULL, FK → data_indicators | Row indicator |
-| `resource_id` | UUID | NOT NULL, FK → catalog_resources | Parent resource |
-| `time_grain` | ENUM | NOT NULL | Time granularity |
-| `period_start` | DATE | NOT NULL | Period start date |
-| `period_label` | VARCHAR | NOT NULL | Display label |
-| `value` | NUMERIC | NULLABLE | Actual numeric value |
-| `qualifier` | ENUM | DEFAULT 'OFFICIAL' | OFFICIAL, PRELIMINARY, ESTIMATED, REVISED, NA |
-| `distribution_id` | UUID | NULLABLE, FK → catalog_distributions | Source distribution |
-| `distribution_key` | TEXT | NULLABLE | Source file key/path |
-| `top_header_value` | TEXT | NULLABLE | Hierarchical header level 1 |
-| `sub_header_value` | TEXT | NULLABLE | Hierarchical header level 2 |
-| `row_dimension_value` | TEXT | NULLABLE | Additional row dimension |
-| `attrs` | JSONB | DEFAULT '{}' | Additional attributes |
-| `created_at` | TIMESTAMPTZ | NOT NULL | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | NOT NULL | Last update timestamp |
-
-#### 🔑 Unique Constraint
-
-```sql
-UNIQUE (indicator_id, resource_id, period_start)
-```
-
-#### 💡 Usage Example
-
-```typescript
-// Upsert data points (prevents duplicates)
-const dataPoints = [
-  {
-    indicator_id: indicatorIds.POP_TOTAL,
-    resource_id: resourceId,
-    time_grain: 'YEAR',
-    period_start: '2024-01-01',
-    period_label: '2024',
-    value: 275000000,
-    qualifier: 'OFFICIAL'
-  },
-  {
-    indicator_id: indicatorIds.POP_MALE,
-    resource_id: resourceId,
-    time_grain: 'YEAR',
-    period_start: '2024-01-01',
-    period_label: '2024',
-    value: 137500000,
-    qualifier: 'OFFICIAL'
-  }
-];
-
-// Use upsert to handle duplicates
-const { data } = await supabase
-  .from('data_points')
-  .upsert(dataPoints, {
-    onConflict: 'indicator_id,resource_id,period_start'
-  });
-```
-
----
-
-## 📚 Reference & Lookup Tables
-
-### `catalog_tags`
-
-**Purpose**: Tagging system for datasets.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `name` | VARCHAR | Tag name (unique) |
-
-**Junction Table**: `catalog_dataset_tags` (dataset_id, tag_id)
-
-**RLS**: Public read, authenticated write
-
----
-
-### `catalog_themes`
-
-**Purpose**: Thematic categories for datasets.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `code` | VARCHAR | Theme code (unique) |
-| `name` | VARCHAR | Theme display name |
-| `icon_url` | TEXT | Theme icon URL |
-
-**Junction Table**: `catalog_dataset_themes` (dataset_id, theme_id)
-
-**RLS**: Public read, authenticated write
-
----
-
-### `catalog_data_classifications`
-
-**Purpose**: Data sensitivity levels.
-
-| Code | Name | Notes |
-|------|------|-------|
-| `PUBLIC` | Public Data | Freely accessible |
-| `INTERNAL` | Internal Data | Organization-only |
-| `CONFIDENTIAL` | Confidential | Restricted access |
-
-**RLS**: Public read only
-
----
-
-### `lisensi` (Licenses)
-
-**Purpose**: Data licenses (e.g., Creative Commons).
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `code` | VARCHAR | License code (e.g., "CC-BY-4.0") |
-| `name` | VARCHAR | License full name |
-| `url` | VARCHAR | License URL |
-| `notes` | TEXT | Additional notes |
-
-**RLS**: Public read only
-
----
-
-### `freq_upd` (Update Frequencies)
-
-**Purpose**: Dataset update schedules.
-
-| Code | Name |
-|------|------|
-| `DAILY` | Daily |
-| `WEEKLY` | Weekly |
-| `MONTHLY` | Monthly |
-| `QUARTERLY` | Quarterly |
-| `ANNUALLY` | Annually |
-
-**RLS**: Public read only
-
----
-
-## 👥 Organization & User Management
-
-### `org_organizations`
-
-**Purpose**: Organizational entities (hierarchical).
-
-#### 📋 Schema
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `name` | VARCHAR | Organization full name |
-| `short_name` | VARCHAR | Abbreviation |
-| `org_type` | ENUM | GOVERNMENT, NGO, PRIVATE, ACADEMIC, INTERNATIONAL |
-| `parent_id` | UUID | Parent organization (for hierarchy) |
-| `metadata` | JSONB | Additional metadata |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
-
-**RLS**: Authenticated users can view, ADMIN can manage
-
----
-
-### `org_roles`
-
-**Purpose**: Role definitions.
-
-#### 📋 Schema
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `code` | VARCHAR | Role code (ADMIN, WALIDATA, etc.) |
-| `name` | VARCHAR | Role display name |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-
-#### 🎭 Role Hierarchy
-
-| Role | Code | Permissions |
-|------|------|-------------|
-| **Administrator** | `ADMIN` | Full system access, user management, all operations |
-| **Data Guardian** | `WALIDATA` | Approve/publish datasets, manage organizations, assign VIEWER/PRODUSEN roles |
-| **Coordinator** | `KOORDINATOR` | View all datasets in organization (read-only) |
-| **Producer** | `PRODUSEN` | Create/edit datasets in own org (DRAFT/PENDING_REVIEW only) |
-| **Viewer** | `VIEWER` | Read-only access to internal datasets |
-
-**RLS**: Public read only
-
----
-
-### `org_user_roles` ⚠️ **CRITICAL SECURITY TABLE**
-
-**Purpose**: Junction table linking users to roles (many-to-many).
-
-#### 📋 Schema
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `user_id` | UUID | FK → auth.users |
-| `role_id` | UUID | FK → org_roles |
-
-**Primary Key**: `(user_id, role_id)`
-
-#### 🔒 RLS Policies
-
-| Policy | Command | Condition |
-|--------|---------|-----------|
-| View user roles | SELECT | Authenticated users |
-| Manage roles | INSERT/UPDATE/DELETE | ADMIN (all roles) OR WALIDATA (VIEWER/PRODUSEN only) |
-
-#### 🚨 SECURITY WARNING
-
-**NEVER** store roles in the `profiles` or `org_users` table!
-
-```typescript
-// ❌ WRONG - Privilege escalation vulnerability
-await supabase.from('profiles').update({ role: 'admin' });
-// Users can update their own profile → instant admin access!
-
-// ✅ CORRECT - Separate table with strict RLS
-await supabase.from('org_user_roles').insert({
-  user_id: targetUserId,
-  role_id: adminRoleId
-});
-// RLS prevents self-assignment
-```
-
----
-
-### `profiles`
-
-**Purpose**: User profile information (extends auth.users).
-
-#### 📋 Schema
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | PRIMARY KEY → auth.users(id) |
-| `email` | VARCHAR | User email (synced from auth) |
-| `full_name` | VARCHAR | Display name |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
-
-#### 🔒 RLS Policies
-
-- Users can view/update their own profile
-- ADMINs can view/update all profiles
-
-#### ⚠️ REMOVED COLUMNS
-
-- ~~`role`~~ - **REMOVED** (privilege escalation risk)
-- Roles MUST be stored in `org_user_roles` only
-
----
-
-### `org_users`
-
-**Purpose**: Organizational user records (alternative user table).
-
-#### 📋 Schema
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `email` | VARCHAR | User email (unique) |
-| `full_name` | VARCHAR | Full name |
-| `org_id` | UUID | FK → org_organizations |
-| `is_active` | BOOLEAN | Active/inactive flag |
-| `attributes` | JSONB | Additional attributes |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
-
-#### 🔒 RLS Policies
-
-ADMIN only (all operations)
-
-#### ⚠️ REMOVED COLUMNS
-
-- ~~`password_hash`~~ - **REMOVED** (credential exposure risk)
-- Use Supabase Auth (`auth.users`) for authentication
-
----
-
-## 📊 Telemetry & Analytics
-
-### `telemetry_views`
-
-**Purpose**: Track dataset page views.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | BIGSERIAL | Primary key |
-| `dataset_id` | UUID | FK → catalog_metadata |
-| `user_id` | UUID | FK → auth.users (nullable for anonymous) |
-| `session_id` | VARCHAR | Session identifier |
-| `ip_address` | INET | Client IP address |
-| `user_agent` | TEXT | Browser user agent |
-| `referrer` | TEXT | Referrer URL |
-| `created_at` | TIMESTAMPTZ | View timestamp |
-
-**RLS**: Public insert, users view own records
-
----
-
-### `telemetry_downloads`
-
-**Purpose**: Track file downloads.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | BIGSERIAL | Primary key |
-| `distribution_id` | UUID | FK → catalog_distributions |
-| `user_id` | UUID | FK → auth.users (nullable) |
-| `channel` | ENUM | WEB, API, DIRECT |
-| `client_info` | JSONB | User agent, IP, etc. |
-| `created_at` | TIMESTAMPTZ | Download timestamp |
-
-**RLS**: Authenticated insert/view
-
----
-
-### `telemetry_audit_events`
-
-**Purpose**: Audit trail for significant actions.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | BIGSERIAL | Primary key |
-| `actor_id` | UUID | FK → auth.users |
-| `action` | VARCHAR | Action type (CREATE, UPDATE, DELETE, PUBLISH, etc.) |
-| `object_type` | VARCHAR | Object type (dataset, resource, user, etc.) |
-| `object_id` | UUID | Target object ID |
-| `context` | JSONB | Before/after state, reason, metadata |
-| `created_at` | TIMESTAMPTZ | Event timestamp |
-
-**RLS**: Authenticated insert/view
-
----
-
-## 🎨 Custom Types (Enums)
-
-### `publication_status`
-
-```sql
-CREATE TYPE publication_status AS ENUM (
-  'DRAFT',           -- Initial state, editable
-  'PENDING_REVIEW',  -- Submitted for review
-  'PUBLISHED'        -- Public, read-only
-);
-```
-
----
-
-### `classification_type`
-
-```sql
-CREATE TYPE classification_type AS ENUM (
-  'PUBLIC',          -- Publicly accessible
-  'INTERNAL',        -- Organization-only
-  'CONFIDENTIAL'     -- Restricted access
-);
-```
-
----
-
-### `resource_type`
-
-```sql
-CREATE TYPE resource_type AS ENUM (
-  'TABLE',   -- Structured data table
-  'FILE',    -- Downloadable file
-  'API',     -- API endpoint
-  'WEB'      -- Web link
-);
-```
-
----
-
-### `time_grain`
-
-```sql
-CREATE TYPE time_grain AS ENUM (
-  'YEAR',
-  'QUARTER',
-  'MONTH',
-  'WEEK',
-  'DAY'
-);
-```
-
----
-
-### `qualifier_type`
-
-```sql
-CREATE TYPE qualifier_type AS ENUM (
-  'OFFICIAL',      -- Final, official data
-  'PRELIMINARY',   -- Initial estimate
-  'ESTIMATED',     -- Calculated estimate
-  'REVISED',       -- Revised from previous
-  'NA'            -- Not available
-);
-```
-
----
-
-### `availability_type`
-
-```sql
-CREATE TYPE availability_type AS ENUM (
-  'online',    -- Currently available
-  'offline',   -- Temporarily unavailable
-  'archived'   -- Permanently archived
-);
-```
-
----
-
-### `download_channel`
-
-```sql
-CREATE TYPE download_channel AS ENUM (
-  'WEB',     -- Web interface
-  'API',     -- API call
-  'DIRECT'   -- Direct link
-);
-```
-
----
+# Database Schema Documentation
+
+This document provides a comprehensive overview of the Supabase database schema for the Open Data Kobar platform. The schema is designed to manage open data catalogs, user organizations, data resources, and telemetry tracking.
+
+## Overview
+
+The database consists of several key domains:
+- **Organization & User Management** (`org_*` tables)
+- **Data Catalog** (`catalog_*` tables)
+- **Data Resources & Indicators** (`data_*` tables)
+- **Reference Data** (licenses, frequencies, classifications, etc.)
+- **Telemetry & Audit** (`telemetry_*` tables)
+- **Access Control** (policies, roles, permissions)
+
+## Core Tables
+
+### Organization & User Management
+
+#### `org_organizations`
+Represents organizations that can publish or consume data.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique identifier
+- `name` (VARCHAR(200), NOT NULL) - Full organization name
+- `short_name` (VARCHAR(50)) - Abbreviated name
+- `org_type` (org_type ENUM, NOT NULL) - Type of organization
+- `parent_id` (UUID) - Parent organization for hierarchical structure
+- `metadata` (JSONB) - Additional organization metadata
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+**Relationships:**
+- Self-referencing: `parent_id` → `org_organizations.id`
+- Referenced by: `org_users.org_id`, `catalog_metadata.org_id`, `catalog_metadata.publisher_org_id`
+
+**Indexes:**
+- `idx_org_organizations_name`
+- `idx_org_organizations_org_type`
+- `idx_org_organizations_parent_id`
+
+#### `org_users`
+Users within the system, linked to organizations.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique identifier (matches Supabase Auth)
+- `email` (VARCHAR(255), UNIQUE, NOT NULL) - User email
+- `full_name` (VARCHAR(150), NOT NULL) - User's full name
+- `org_id` (UUID) - Associated organization
+- `is_active` (BOOLEAN, DEFAULT true) - Account status
+- `attributes` (JSONB) - Additional user attributes
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+**Relationships:**
+- `org_id` → `org_organizations.id`
+- Referenced by: `catalog_metadata.created_by`, `catalog_metadata.updated_by`, `telemetry_audit_events.actor_id`, `telemetry_downloads.user_id`
+
+**Indexes:**
+- `idx_org_users_org_id`
+- `idx_org_users_is_active`
+
+#### `org_roles`
+System roles for access control.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique identifier
+- `code` (VARCHAR(40), UNIQUE, NOT NULL) - Role code (e.g., 'ADMIN', 'WALIDATA')
+- `name` (VARCHAR(100), NOT NULL) - Human-readable role name
+- `created_at` (TIMESTAMP) - Creation timestamp
+
+**Relationships:**
+- Referenced by: `org_user_roles.role_id`
+
+#### `org_user_roles`
+Many-to-many relationship between users and roles.
+
+**Columns:**
+- `user_id` (UUID, NOT NULL) - User identifier
+- `role_id` (UUID, NOT NULL) - Role identifier
+
+**Relationships:**
+- `user_id` → `org_users.id`
+- `role_id` → `org_roles.id`
+
+**Constraints:**
+- Primary Key: `(user_id, role_id)`
+
+**Indexes:**
+- `idx_org_user_roles_role_id`
+
+### Data Catalog
+
+#### `catalog_metadata`
+Core dataset metadata table containing all information about datasets.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique dataset identifier
+- `org_id` (UUID) - Organization that owns the dataset
+- `title` (VARCHAR(300), NOT NULL) - Dataset title
+- `slug` (VARCHAR(320), UNIQUE, NOT NULL) - URL-friendly identifier
+- `abstract` (TEXT) - Brief dataset description
+- `description` (TEXT) - Detailed dataset description
+- `last_updated_display` (TIMESTAMP) - Display date for last update
+- `source_name` (VARCHAR(200)) - Data source name
+- `publisher_org_id` (UUID) - Organization publishing the dataset
+- `maintainers` (JSONB, DEFAULT []) - List of dataset maintainers
+- `contact_email` (VARCHAR(255)) - Contact email for the dataset
+- `classification_code` (classification_type ENUM) - Data classification level
+- `language` (VARCHAR(10), DEFAULT 'id') - Dataset language
+- `license_code` (VARCHAR(40)) - License identifier
+- `update_frequency_code` (VARCHAR(20)) - Update frequency code
+- `temporal_start` (DATE) - Start date of data coverage
+- `temporal_end` (DATE) - End date of data coverage
+- `is_published` (BOOLEAN, DEFAULT false) - Legacy publication flag
+- `publication_status` (publication_status ENUM, DEFAULT 'DRAFT') - Current publication status
+- `keywords` (JSONB, DEFAULT []) - Dataset keywords/tags
+- `custom_fields` (JSONB, DEFAULT {}) - Additional custom metadata
+- `created_by` (UUID) - User who created the dataset
+- `updated_by` (UUID) - User who last updated the dataset
+- `unpublish_request_reason` (TEXT) - Reason for unpublish requests
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Relationships:**
+- `org_id` → `org_organizations.id`
+- `publisher_org_id` → `org_organizations.id`
+- `created_by` → `org_users.id`
+- `updated_by` → `org_users.id`
+- `license_code` → `lisensi.code`
+- `update_frequency_code` → `freq_upd.code`
+- Referenced by: `catalog_resources.dataset_id`, `catalog_dataset_tags.dataset_id`, `catalog_dataset_themes.dataset_id`, `catalog_dataset_spatial_coverage.dataset_id`, `gov_dataset_policies.dataset_id`, `telemetry_views.dataset_id`
+
+**Indexes:**
+- `idx_catalog_metadata_org_id`
+- `idx_catalog_metadata_classification`
+- `idx_catalog_metadata_published`
+- `idx_catalog_metadata_temporal`
+- `idx_catalog_metadata_created_at`
+- Full-text search: `idx_catalog_metadata_fulltext`
+
+#### `catalog_resources`
+Represents different resources (tables, files, APIs) within a dataset.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique resource identifier
+- `dataset_id` (UUID, NOT NULL) - Parent dataset
+- `name` (VARCHAR(200), NOT NULL) - Resource name
+- `resource_type` (resource_type ENUM, NOT NULL) - Type of resource
+- `indicator_title` (TEXT) - Human-friendly title for the primary indicator contained in the resource
+- `unit` (TEXT) - Standardized measurement unit used across all periods (e.g., "Rekaman")
+- `frequency` (TEXT) - Update cadence descriptor (e.g., "Tahunan", "Triwulanan")
+- `aggregation_method` (TEXT) - How yearly totals are aggregated (e.g., "Total per tahun")
+- `time_dimension` (TEXT, DEFAULT 'year') - Canonical time axis label used to render charts
+- `chart_type` (TEXT) - Preferred chart to render (line, area, slope, kpi, bar, table)
+- `interpretation` (TEXT) - Optional human-readable insight to display alongside charts
+- `is_timeseries` (BOOLEAN, DEFAULT false) - Signals that the resource should be visualized as a temporal trend
+- `schema_json` (JSONB, DEFAULT {}) - Schema definition for structured data
+- `description` (TEXT) - Resource description
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+**Relationships:**
+- `dataset_id` → `catalog_metadata.id`
+- Referenced by: `catalog_distributions.resource_id`, `data_indicators.resource_id`, `data_points.resource_id`, `data_table_view_columns.resource_id`
+
+**Constraints:**
+- `chart_type` must be null or one of the supported visualization types (`line`, `area`, `slope`, `kpi`, `bar`, `table`)
+
+**Indexes:**
+- `idx_catalog_resources_dataset_id`
+- `idx_catalog_resources_resource_type`
+
+#### `catalog_distributions`
+File distributions or access points for resources.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique distribution identifier
+- `resource_id` (UUID, NOT NULL) - Parent resource
+- `version` (VARCHAR(60), NOT NULL) - Distribution version
+- `media_type` (VARCHAR(100), NOT NULL) - MIME type
+- `byte_size` (BIGINT) - File size in bytes
+- `checksum_sha256` (CHAR(64)) - SHA256 checksum
+- `storage_uri` (VARCHAR(1024)) - Storage location URL
+- `availability` (availability_type ENUM, DEFAULT 'online') - Availability status
+- `created_at` (TIMESTAMP) - Creation timestamp
+
+**Relationships:**
+- `resource_id` → `catalog_resources.id`
+- Referenced by: `data_points.distribution_id`, `telemetry_downloads.distribution_id`
+
+**Indexes:**
+- `idx_catalog_distributions_resource_id`
+- `idx_catalog_distributions_version`
+
+### Data Resources & Indicators
+
+#### `data_indicators`
+Defines indicators/metrics within a data resource.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique indicator identifier
+- `resource_id` (UUID, NOT NULL) - Parent resource
+- `code` (VARCHAR(80), NOT NULL) - Indicator code
+- `label` (VARCHAR(255), NOT NULL) - Human-readable label
+- `unit` (VARCHAR(40)) - Measurement unit
+- `description` (TEXT) - Indicator description
+- `order_no` (INTEGER, DEFAULT 0) - Display order
+- `is_active` (BOOLEAN, DEFAULT true) - Active status
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+**Relationships:**
+- `resource_id` → `catalog_resources.id`
+- Referenced by: `data_points.indicator_id`
+
+**Constraints:**
+- Unique: `(resource_id, code)`
+
+**Indexes:**
+- `idx_data_indicators_resource_id`
+
+#### `data_points`
+Actual data values for indicators at specific time periods.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique data point identifier
+- `indicator_id` (UUID, NOT NULL) - Associated indicator
+- `resource_id` (UUID, NOT NULL) - Parent resource
+- `time_grain` (time_grain_type ENUM, NOT NULL) - Time granularity
+- `period_start` (DATE, NOT NULL) - Start date of period
+- `period_label` (VARCHAR(20), NOT NULL) - Human-readable period label
+- `value` (NUMERIC(20,4)) - Data value
+- `qualifier` (qualifier_type ENUM, DEFAULT 'OFFICIAL') - Data quality qualifier
+- `distribution_id` (UUID) - Associated distribution
+- `distribution_key` (STRING) - Distribution-specific key
+- `attrs` (JSONB) - Additional attributes
+- `row_dimension_value` (STRING) - Row dimension value
+- `sub_header_value` (STRING) - Sub-header value
+- `top_header_value` (STRING) - Top header value
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+**Relationships:**
+- `indicator_id` → `data_indicators.id`
+- `resource_id` → `catalog_resources.id`
+- `distribution_id` → `catalog_distributions.id`
+
+**Constraints:**
+- Unique: `(indicator_id, period_start, resource_id)`
+
+**Indexes:**
+- `idx_data_points_resource_period`
+- `idx_data_points_indicator_period`
+- `unique_data_point_indicator_period_resource`
+
+#### `data_table_view_columns`
+Configuration for table view column display.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique configuration identifier
+- `resource_id` (UUID, NOT NULL) - Parent resource
+- `time_grain` (time_grain_type ENUM, NOT NULL) - Time granularity
+- `period_start` (DATE, NOT NULL) - Period start date
+- `column_label` (VARCHAR(20), NOT NULL) - Column display label
+- `is_hidden` (BOOLEAN, DEFAULT false) - Visibility flag
+- `column_order` (INTEGER, DEFAULT 0) - Display order
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+**Relationships:**
+- `resource_id` → `catalog_resources.id`
+
+**Constraints:**
+- Unique: `(resource_id, period_start)`
+
+**Indexes:**
+- `idx_data_table_view_columns_resource_order`
+- `idx_data_table_view_columns_resource_hidden`
+
+### Reference Data
+
+#### `lisensi`
+License definitions for datasets.
+
+**Columns:**
+- `code` (VARCHAR(40), Primary Key) - License code
+- `name` (VARCHAR(120), NOT NULL) - License name
+- `url` (VARCHAR(255)) - License URL
+- `notes` (TEXT) - Additional notes
+
+**Relationships:**
+- Referenced by: `catalog_metadata.license_code`
+
+#### `freq_upd`
+Update frequency definitions.
+
+**Columns:**
+- `code` (VARCHAR(20), Primary Key) - Frequency code
+- `name` (VARCHAR(40), NOT NULL) - Frequency name
+- `notes` (TEXT) - Additional notes
+
+**Relationships:**
+- Referenced by: `catalog_metadata.update_frequency_code`
+
+#### `catalog_tags`
+Dataset tags for categorization.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique tag identifier
+- `name` (VARCHAR(80), UNIQUE, NOT NULL) - Tag name
+
+**Relationships:**
+- Referenced by: `catalog_dataset_tags.tag_id`
+
+#### `catalog_themes`
+Dataset themes for categorization.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique theme identifier
+- `code` (VARCHAR(50), UNIQUE, NOT NULL) - Theme code
+- `name` (VARCHAR(120), NOT NULL) - Theme name
+- `icon_url` (VARCHAR(255)) - Theme icon URL
+
+#### `spatial_units`
+Geographic/spatial units for data coverage.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique spatial unit identifier
+- `name` (VARCHAR(200), NOT NULL) - Unit name
+- `code` (VARCHAR(20), NOT NULL) - Unit code
+- `level` (spatial_level ENUM, NOT NULL) - Administrative level
+- `parent_id` (UUID) - Parent spatial unit
+- `metadata` (JSONB, DEFAULT {}) - Additional metadata
+
+**Relationships:**
+- Self-referencing: `parent_id` → `spatial_units.id`
+- Referenced by: `catalog_dataset_spatial_coverage.spatial_id`
+
+**Indexes:**
+- `idx_spatial_units_level`
+- `idx_spatial_units_code`
+
+### Junction Tables
+
+#### `catalog_dataset_tags`
+Many-to-many relationship between datasets and tags.
+
+**Columns:**
+- `dataset_id` (UUID, NOT NULL) - Dataset identifier
+- `tag_id` (UUID, NOT NULL) - Tag identifier
+
+**Relationships:**
+- `dataset_id` → `catalog_metadata.id`
+- `tag_id` → `catalog_tags.id`
+
+**Constraints:**
+- Primary Key: `(dataset_id, tag_id)`
+
+**Indexes:**
+- `idx_catalog_dataset_tags_tag_id`
+
+#### `catalog_dataset_themes`
+Many-to-many relationship between datasets and themes.
+
+**Columns:**
+- `dataset_id` (UUID, NOT NULL) - Dataset identifier
+- `theme_id` (UUID, NOT NULL) - Theme identifier
+
+**Relationships:**
+- `dataset_id` → `catalog_metadata.id`
+- `theme_id` → `catalog_themes.id`
+
+**Constraints:**
+- Primary Key: `(dataset_id, theme_id)`
+
+#### `catalog_dataset_spatial_coverage`
+Many-to-many relationship between datasets and spatial coverage areas.
+
+**Columns:**
+- `dataset_id` (UUID, NOT NULL) - Dataset identifier
+- `spatial_id` (UUID, NOT NULL) - Spatial unit identifier
+
+**Relationships:**
+- `dataset_id` → `catalog_metadata.id`
+- `spatial_id` → `spatial_units.id`
+
+**Constraints:**
+- Primary Key: `(dataset_id, spatial_id)`
+
+### Access Control
+
+#### `gov_dataset_policies`
+Government dataset access policies.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique policy identifier
+- `dataset_id` (UUID, NOT NULL) - Target dataset
+- `rule` (policy_rule ENUM, NOT NULL) - Policy rule type
+- `subject_type` (policy_subject_type ENUM, NOT NULL) - Subject type
+- `subject_id` (UUID) - Subject identifier
+- `constraint_text` (VARCHAR(255)) - Policy constraint description
+- `details` (JSONB, DEFAULT {}) - Additional policy details
+- `created_at` (TIMESTAMP) - Creation timestamp
+
+**Relationships:**
+- `dataset_id` → `catalog_metadata.id`
+
+**Indexes:**
+- `idx_gov_dataset_policies_dataset_id`
+- `idx_gov_dataset_policies_subject`
+- `idx_gov_dataset_policies_rule`
+
+### Telemetry & Audit
+
+#### `telemetry_audit_events`
+Audit log for system actions.
+
+**Columns:**
+- `id` (BIGINT, Primary Key) - Sequential audit identifier
+- `actor_id` (UUID) - User performing action
+- `action` (VARCHAR(60), NOT NULL) - Action performed
+- `object_type` (VARCHAR(40)) - Type of object acted upon
+- `object_id` (UUID) - Identifier of object acted upon
+- `context` (JSONB, DEFAULT {}) - Additional context
+- `created_at` (TIMESTAMP) - Event timestamp
+
+**Relationships:**
+- `actor_id` → `org_users.id`
+
+**Indexes:**
+- `idx_telemetry_audit_events_actor_id`
+- `idx_telemetry_audit_events_object`
+- `idx_telemetry_audit_events_created_at`
+
+#### `telemetry_downloads`
+Download tracking for distributions.
+
+**Columns:**
+- `id` (BIGINT, Primary Key) - Sequential download identifier
+- `distribution_id` (UUID, NOT NULL) - Downloaded distribution
+- `user_id` (UUID) - Downloading user (null for anonymous)
+- `channel` (download_channel ENUM, NOT NULL) - Download channel
+- `client_info` (JSONB, DEFAULT {}) - Client information
+- `session_id` (TEXT) - Session identifier for anonymous users
+- `created_at` (TIMESTAMP) - Download timestamp
+
+**Relationships:**
+- `distribution_id` → `catalog_distributions.id`
+
+**Indexes:**
+- `idx_telemetry_downloads_distribution_id`
+- `idx_telemetry_downloads_user_id`
+- `idx_telemetry_downloads_created_at`
+- `idx_telemetry_downloads_channel`
+- `idx_telemetry_downloads_session_id`
+
+#### `telemetry_views`
+Dataset view tracking.
+
+**Columns:**
+- `id` (BIGINT, Primary Key) - Sequential view identifier
+- `dataset_id` (UUID, NOT NULL) - Viewed dataset
+- `user_id` (UUID) - Viewing user (null for anonymous)
+- `ip_address` (INET) - Viewer IP address
+- `referrer` (VARCHAR(255)) - HTTP referrer
+- `session_id` (TEXT) - Session identifier
+- `user_agent` (TEXT) - Browser user agent
+- `created_at` (TIMESTAMP) - View timestamp
+
+**Relationships:**
+- `dataset_id` → `catalog_metadata.id`
+
+**Indexes:**
+- `idx_telemetry_views_dataset_id`
+- `idx_telemetry_views_created_at`
+
+### Legacy Tables
+
+#### `profiles`
+Legacy user profile table (being phased out in favor of org_users).
+
+**Columns:**
+- `id` (UUID, Primary Key) - User identifier
+- `email` (VARCHAR(255), NOT NULL) - User email
+- `full_name` (VARCHAR(255)) - User full name
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+## Enums
 
 ### `org_type`
+- `WALIDATA` - Data validator organization
+- `PRODUSEN_DATA` - Data producer organization
+- `KOORDINATOR` - Coordinating organization
+- `LAINNYA` - Other organization types
 
-```sql
-CREATE TYPE org_type AS ENUM (
-  'GOVERNMENT',
-  'NGO',
-  'PRIVATE',
-  'ACADEMIC',
-  'INTERNATIONAL'
-);
+### `resource_type`
+- `TABLE` - Tabular data
+- `FILE` - File-based data
+- `API` - API-based data access
+- `LINK` - External link
+
+### `availability_type`
+- `online` - Data is available online
+- `offline` - Data is offline
+- `archived` - Data is archived
+
+### `classification_type`
+- `PUBLIC` - Publicly accessible data
+- `TERBATAS` - Restricted access data
+
+### `spatial_level`
+- `PROV` - Province level
+- `KAB` - Regency/City level
+- `KEC` - District level
+- `DESA` - Village level
+- `KEL` - Urban village level
+- `OTHER` - Other spatial levels
+
+### `download_channel`
+- `WEB` - Web interface downloads
+- `API` - API-based downloads
+- `DIRECT` - Direct access downloads
+
+### `policy_rule`
+- `VIEW` - View permission
+- `DOWNLOAD` - Download permission
+- `UPDATE` - Update permission
+- `ADMIN` - Administrative permission
+
+### `policy_subject_type`
+- `USER` - Individual user
+- `ROLE` - User role
+- `ORG` - Organization
+
+### `publication_status`
+- `DRAFT` - Dataset in draft state
+- `PENDING_REVIEW` - Awaiting review
+- `PUBLISHED` - Publicly published
+- `REJECTED` - Review rejected
+
+### `qualifier_type`
+- `NA` - Not available
+- `OFFICIAL` - Official data
+- `PRELIM` - Preliminary data
+- `EST` - Estimated data
+
+### `time_grain_type`
+- `YEAR` - Yearly data
+- `QUARTER` - Quarterly data
+- `MONTH` - Monthly data
+
+## Database Functions
+
+### `auth_org_id()`
+Returns the current user's organization ID.
+
+**Returns:** `UUID`
+
+### `get_user_org_id()`
+Returns the current user's organization ID (alias for auth_org_id).
+
+**Returns:** `UUID`
+
+### `has_role(_role_code)`
+Checks if the current user has a specific role.
+
+**Parameters:**
+- `_role_code` (TEXT) - Role code to check
+
+**Returns:** `BOOLEAN`
+
+### `is_admin(_user_id?)`
+Checks if a user has admin privileges.
+
+**Parameters:**
+- `_user_id` (UUID, optional) - User ID to check (defaults to current user)
+
+**Returns:** `BOOLEAN`
+
+### `has_admin_or_walidata_role()`
+Checks if current user has admin or walidata role.
+
+**Returns:** `BOOLEAN`
+
+### `can_log_download(p_distribution_id, p_session_id, p_user_id)`
+Checks if a download can be logged (for rate limiting).
+
+**Parameters:**
+- `p_distribution_id` (UUID) - Distribution being downloaded
+- `p_session_id` (TEXT) - Session identifier
+- `p_user_id` (UUID) - User identifier
+
+**Returns:** `BOOLEAN`
+
+### `can_modify_user_role(_target_role_code)`
+Checks if current user can modify users with a specific role.
+
+**Parameters:**
+- `_target_role_code` (TEXT) - Target role code
+
+**Returns:** `BOOLEAN`
+
+### `get_dataset_download_count(dataset_id_param)`
+Gets total download count for a dataset.
+
+**Parameters:**
+- `dataset_id_param` (UUID) - Dataset identifier
+
+**Returns:** `INTEGER`
+
+### `get_dataset_view_count(dataset_id_param)`
+Gets total view count for a dataset.
+
+**Parameters:**
+- `dataset_id_param` (UUID) - Dataset identifier
+
+**Returns:** `INTEGER`
+
+### `get_datasets_download_counts(dataset_ids)`
+Gets download counts for multiple datasets.
+
+**Parameters:**
+- `dataset_ids` (UUID[]) - Array of dataset identifiers
+
+**Returns:** `TABLE(dataset_id UUID, download_count INTEGER)`
+
+### `get_datasets_view_counts(dataset_ids)`
+Gets view counts for multiple datasets.
+
+**Parameters:**
+- `dataset_ids` (UUID[]) - Array of dataset identifiers
+
+**Returns:** `TABLE(dataset_id UUID, view_count INTEGER)`
+
+### `get_user_role(user_id)`
+Gets the primary role code for a user.
+
+**Parameters:**
+- `user_id` (UUID) - User identifier
+
+**Returns:** `TEXT`
+
+## Row Level Security (RLS)
+
+All tables have Row Level Security enabled with policies controlling access based on:
+
+1. **Organization-based access**: Users can access data from their organization
+2. **Public data access**: Published public datasets are accessible to all
+3. **Role-based permissions**: Admin and Walidata roles have broader access
+4. **Publication status**: Only published datasets are publicly visible
+
+Key policies include:
+- Public datasets are viewable by everyone when published
+- Users can manage data within their organization
+- Admin/Walidata roles have system-wide access
+- Audit events track all data access and modifications
+
+## Key Relationships
+
+### Dataset Hierarchy
+```
+catalog_metadata (dataset)
+├── catalog_resources (resources within dataset)
+│   ├── catalog_distributions (downloadable files/endpoints)
+│   ├── data_indicators (metrics/columns)
+│   │   └── data_points (actual data values)
+│   └── data_table_view_columns (display configuration)
+├── catalog_dataset_tags (categorization)
+├── catalog_dataset_themes (theming)
+└── catalog_dataset_spatial_coverage (geographic coverage)
 ```
 
----
-
-## ⚙️ Database Functions
-
-### `has_role(_role_code TEXT) → BOOLEAN`
-
-**Purpose**: Check if current user has a specific role.
-
-```sql
-CREATE FUNCTION public.has_role(_role text)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM org_user_roles ur
-    JOIN org_roles r ON ur.role_id = r.id
-    WHERE ur.user_id = auth.uid()
-    AND r.code = _role
-  );
-$$;
+### Organization Hierarchy
+```
+org_organizations (hierarchical)
+└── org_users (organization members)
+    └── org_user_roles (user permissions)
 ```
 
-**Usage**:
-```sql
-SELECT has_role('ADMIN');  -- Returns true/false
+### User Data Flow
+```
+org_users → catalog_metadata → catalog_resources → data_indicators → data_points
 ```
 
----
-
-### `is_admin(_user_id UUID DEFAULT auth.uid()) → BOOLEAN`
-
-**Purpose**: Check if user is an admin.
-
-```sql
-CREATE FUNCTION public.is_admin(_user_id uuid DEFAULT auth.uid())
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT has_role('ADMIN');
-$$;
-```
-
-**Usage**:
-```sql
-SELECT is_admin();  -- Current user
-SELECT is_admin('some-uuid');  -- Specific user
-```
-
----
-
-### `auth_org_id() → UUID`
-
-**Purpose**: Get current user's organization ID.
-
-```sql
-CREATE FUNCTION public.auth_org_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT org_id
-  FROM org_users
-  WHERE id = auth.uid();
-$$;
-```
-
-**Usage**:
-```sql
-SELECT auth_org_id();
-```
-
----
-
-### `get_user_org_id() → UUID`
-
-**Purpose**: Alias for `auth_org_id()`.
-
-```sql
-CREATE FUNCTION public.get_user_org_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT org_id FROM public.org_users WHERE id = auth.uid();
-$$;
-```
-
----
-
-### `handle_new_user()` - Trigger Function
-
-**Purpose**: Auto-create profile and assign default role on user signup.
-
-```sql
-CREATE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  viewer_role_id UUID;
-BEGIN
-  -- Create profile WITHOUT role column
-  INSERT INTO public.profiles (id, email, full_name)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', '')
-  );
-  
-  -- Create org_users record WITHOUT password_hash
-  INSERT INTO public.org_users (id, email, full_name, org_id, is_active)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', 'Unknown User'),
-    NULL,
-    true
-  );
-  
-  -- Assign default VIEWER role via org_user_roles ONLY
-  SELECT id INTO viewer_role_id FROM public.org_roles WHERE code = 'VIEWER' LIMIT 1;
-  
-  IF viewer_role_id IS NOT NULL THEN
-    INSERT INTO public.org_user_roles (user_id, role_id) 
-    VALUES (NEW.id, viewer_role_id);
-  END IF;
-  
-  RETURN NEW;
-END;
-$$;
-
--- Attach trigger
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-```
-
----
-
-### Analytics Functions
-
-#### `get_dataset_view_count(dataset_id UUID) → BIGINT`
-
-```sql
-CREATE FUNCTION public.get_dataset_view_count(dataset_id_param uuid)
-RETURNS bigint
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT COUNT(*)
-  FROM telemetry_views
-  WHERE dataset_id = dataset_id_param;
-$$;
-```
-
-#### `get_dataset_download_count(dataset_id UUID) → BIGINT`
-
-```sql
-CREATE FUNCTION public.get_dataset_download_count(dataset_id_param uuid)
-RETURNS bigint
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT COUNT(*)
-  FROM telemetry_downloads td
-  JOIN catalog_distributions cd ON td.distribution_id = cd.id
-  JOIN catalog_resources cr ON cd.resource_id = cr.id
-  WHERE cr.dataset_id = dataset_id_param;
-$$;
-```
-
----
-
-## 🔐 Security Model
-
-### RLS Policy Patterns
-
-All tables use **Row-Level Security** with these patterns:
-
-#### 1. **Public Read**
-```sql
-CREATE POLICY "public_read"
-ON table_name
-FOR SELECT
-USING (true);
-```
-
-#### 2. **Own Record Access**
-```sql
-CREATE POLICY "own_record"
-ON profiles
-FOR ALL
-USING (auth.uid() = id)
-WITH CHECK (auth.uid() = id);
-```
-
-#### 3. **Role-Based Access**
-```sql
-CREATE POLICY "admin_all_access"
-ON table_name
-FOR ALL
-USING (has_role('ADMIN'))
-WITH CHECK (has_role('ADMIN'));
-```
-
-#### 4. **Organization-Based Access**
-```sql
-CREATE POLICY "same_org_access"
-ON catalog_metadata
-FOR SELECT
-USING (publisher_org_id = auth_org_id());
-```
-
-#### 5. **Hierarchical Access**
-```sql
-CREATE POLICY "dataset_viewing"
-ON catalog_metadata
-FOR SELECT
-USING (
-  (publication_status = 'PUBLISHED' AND classification_code = 'PUBLIC')
-  OR (auth.uid() IS NOT NULL AND (
-    has_role('ADMIN')
-    OR has_role('WALIDATA')
-    OR has_role('KOORDINATOR')
-    OR publisher_org_id = auth_org_id()
-  ))
-);
-```
-
----
-
-## 📖 Query Examples
-
-### Get User's Roles
-
-```typescript
-const { data: userRoles } = await supabase
-  .from('org_user_roles')
-  .select(`
-    role:org_roles(code, name)
-  `)
-  .eq('user_id', userId);
-
-const roleCodes = userRoles?.map(ur => ur.role.code) || [];
-```
-
----
-
-### Get Datasets with Statistics
-
-```typescript
-const { data: datasets } = await supabase
-  .from('catalog_metadata')
-  .select(`
-    *,
-    publisher_org:org_organizations(name, short_name),
-    resources:catalog_resources(count),
-    tags:catalog_dataset_tags(tag:catalog_tags(name)),
-    themes:catalog_dataset_themes(theme:catalog_themes(name, icon_url))
-  `)
-  .eq('publication_status', 'PUBLISHED')
-  .is('deleted_at', null);
-
-// Add view/download counts
-for (const dataset of datasets) {
-  const { data: viewCount } = await supabase
-    .rpc('get_dataset_view_count', { dataset_id_param: dataset.id });
-  
-  const { data: downloadCount } = await supabase
-    .rpc('get_dataset_download_count', { dataset_id_param: dataset.id });
-  
-  dataset.view_count = viewCount || 0;
-  dataset.download_count = downloadCount || 0;
-}
-```
-
----
-
-### Get Structured Data (Indicators × Periods)
-
-```typescript
-// Get indicators
-const { data: indicators } = await supabase
-  .from('data_indicators')
-  .select('*')
-  .eq('resource_id', resourceId)
-  .eq('is_active', true)
-  .order('order_no');
-
-// Get periods
-const { data: periods } = await supabase
-  .from('data_table_view_columns')
-  .select('*')
-  .eq('resource_id', resourceId)
-  .eq('is_hidden', false)
-  .order('column_order');
-
-// Get data points
-const { data: dataPoints } = await supabase
-  .from('data_points')
-  .select('*')
-  .eq('resource_id', resourceId);
-
-// Build matrix
-const matrix = indicators.map(indicator => ({
-  indicator,
-  values: periods.map(period => {
-    const point = dataPoints.find(
-      p => p.indicator_id === indicator.id && 
-           p.period_start === period.period_start
-    );
-    return point?.value || null;
-  })
-}));
-```
-
----
-
-### Create Dataset Workflow
-
-```typescript
-// 1. Create dataset
-const { data: dataset } = await supabase
-  .from('catalog_metadata')
-  .insert({
-    title: 'Economic Indicators 2024',
-    slug: 'economic-indicators-2024',
-    publisher_org_id: orgId,
-    classification_code: 'PUBLIC',
-    publication_status: 'DRAFT',
-    license_code: 'CC-BY-4.0'
-  })
-  .select()
-  .single();
-
-// 2. Add resource
-const { data: resource } = await supabase
-  .from('catalog_resources')
-  .insert({
-    dataset_id: dataset.id,
-    name: 'Key Economic Metrics',
-    resource_type: 'TABLE'
-  })
-  .select()
-  .single();
-
-// 3. Add indicators
-const indicators = [
-  { code: 'GDP', label: 'GDP Growth', unit: '%' },
-  { code: 'INFLATION', label: 'Inflation Rate', unit: '%' },
-  { code: 'UNEMPLOYMENT', label: 'Unemployment Rate', unit: '%' }
-];
-
-await supabase
-  .from('data_indicators')
-  .insert(indicators.map((ind, i) => ({
-    ...ind,
-    resource_id: resource.id,
-    order_no: i
-  })));
-
-// 4. Add periods
-const periods = ['2020', '2021', '2022', '2023', '2024'].map((year, i) => ({
-  resource_id: resource.id,
-  time_grain: 'YEAR',
-  period_start: `${year}-01-01`,
-  column_label: year,
-  column_order: i
-}));
-
-await supabase
-  .from('data_table_view_columns')
-  .insert(periods);
-
-// 5. Add data points
-const dataPoints = [
-  { indicator_code: 'GDP', year: '2024', value: 5.2 },
-  { indicator_code: 'INFLATION', year: '2024', value: 3.1 },
-  { indicator_code: 'UNEMPLOYMENT', year: '2024', value: 5.8 }
-];
-
-// Get indicator IDs
-const { data: indicatorList } = await supabase
-  .from('data_indicators')
-  .select('id, code')
-  .eq('resource_id', resource.id);
-
-const indicatorMap = Object.fromEntries(
-  indicatorList.map(ind => [ind.code, ind.id])
-);
-
-await supabase
-  .from('data_points')
-  .upsert(
-    dataPoints.map(dp => ({
-      indicator_id: indicatorMap[dp.indicator_code],
-      resource_id: resource.id,
-      time_grain: 'YEAR',
-      period_start: `${dp.year}-01-01`,
-      period_label: dp.year,
-      value: dp.value,
-      qualifier: 'OFFICIAL'
-    })),
-    { onConflict: 'indicator_id,resource_id,period_start' }
-  );
-```
-
----
-
-## ✅ Best Practices
-
-### 1. **Always Use Upsert for Data Points**
-
-```typescript
-// ✅ CORRECT - Prevents duplicate key errors
-await supabase.from('data_points').upsert(dataPoint, {
-  onConflict: 'indicator_id,resource_id,period_start'
-});
-
-// ❌ WRONG - May fail on duplicates
-await supabase.from('data_points').insert(dataPoint);
-```
-
----
-
-### 2. **Never Store Roles in User Tables**
-
-```typescript
-// ❌ WRONG - Privilege escalation vulnerability
-await supabase.from('profiles').update({ role: 'admin' });
-
-// ✅ CORRECT - Separate table with RLS
-await supabase.from('org_user_roles').insert({
-  user_id: userId,
-  role_id: adminRoleId
-});
-```
-
----
-
-### 3. **Use Soft Deletes**
-
-```typescript
-// Soft delete (preserves audit trail)
-await supabase
-  .from('catalog_metadata')
-  .update({ deleted_at: new Date().toISOString() })
-  .eq('id', datasetId);
-
-// Query excludes soft-deleted
-await supabase
-  .from('catalog_metadata')
-  .select('*')
-  .is('deleted_at', null);
-```
-
----
-
-### 4. **Log Audit Events**
-
-```typescript
-await supabase.from('telemetry_audit_events').insert({
-  actor_id: userId,
-  action: 'PUBLISH',
-  object_type: 'dataset',
-  object_id: datasetId,
-  context: {
-    from_status: 'PENDING_REVIEW',
-    to_status: 'PUBLISHED',
-    reason: 'Approved by data guardian'
-  }
-});
-```
-
----
-
-### 5. **Validate Before Insert**
-
-```typescript
-// Validate slug uniqueness
-const { data: existing } = await supabase
-  .from('catalog_metadata')
-  .select('id')
-  .eq('slug', slug)
-  .single();
-
-if (existing) {
-  throw new Error('Slug already exists');
-}
-```
-
----
-
-### 6. **Use Transactions for Related Inserts**
-
-Use RPC functions for complex multi-table operations:
-
-```sql
-CREATE FUNCTION create_dataset_with_resources(
-  p_dataset jsonb,
-  p_resources jsonb
-) RETURNS uuid AS $$
-DECLARE
-  v_dataset_id uuid;
-BEGIN
-  -- Insert dataset
-  INSERT INTO catalog_metadata (...)
-  VALUES (...)
-  RETURNING id INTO v_dataset_id;
-  
-  -- Insert resources
-  INSERT INTO catalog_resources (...)
-  SELECT ... FROM jsonb_array_elements(p_resources);
-  
-  RETURN v_dataset_id;
-END;
-$$ LANGUAGE plpgsql;
-```
-
----
-
-## 🔄 Migration Guide
-
-### Running Migrations
-
-1. **Create Migration File**
-```bash
-supabase migration new add_spatial_support
-```
-
-2. **Write Migration SQL**
-```sql
--- Add spatial support to data_points
-ALTER TABLE data_points
-ADD COLUMN spatial_id UUID REFERENCES spatial_units(id);
-
--- Update unique constraint
-ALTER TABLE data_points
-DROP CONSTRAINT data_points_indicator_id_resource_id_period_start_key;
-
-ALTER TABLE data_points
-ADD CONSTRAINT data_points_unique
-UNIQUE (indicator_id, resource_id, period_start, spatial_id);
-```
-
-3. **Apply Migration**
-```bash
-supabase db push
-```
-
-4. **Generate Types**
-```bash
-supabase gen types typescript --local > src/types/database.ts
-```
-
----
-
-### Schema Change Checklist
-
-- [ ] Create migration file
-- [ ] Update RLS policies if needed
-- [ ] Test with different user roles
-- [ ] Update documentation
-- [ ] Generate new TypeScript types
-- [ ] Update client code
-- [ ] Deploy to staging
-- [ ] Test thoroughly
-- [ ] Deploy to production
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### 1. **"new row violates row-level security policy"**
-
-**Cause**: Trying to insert data that doesn't pass RLS policies.
-
-**Solution**:
-```typescript
-// Ensure user_id is set for user-specific tables
-await supabase.from('catalog_metadata').insert({
-  // ... other fields ...
-  created_by: userId,  // ✅ Required
-  publisher_org_id: orgId  // ✅ Required for org-based RLS
-});
-```
-
----
-
-#### 2. **Duplicate Key Errors on data_points**
-
-**Cause**: Not using upsert for data that may already exist.
-
-**Solution**:
-```typescript
-// Use upsert instead of insert
-await supabase.from('data_points').upsert(dataPoints, {
-  onConflict: 'indicator_id,resource_id,period_start'
-});
-```
-
----
-
-#### 3. **Role Checks Not Working**
-
-**Cause**: Roles not properly assigned in `org_user_roles`.
-
-**Solution**:
-```typescript
-// Check user's roles
-const { data: roles } = await supabase
-  .from('org_user_roles')
-  .select('role:org_roles(code)')
-  .eq('user_id', userId);
-
-console.log('User roles:', roles);
-
-// Assign role if missing
-const { data: adminRole } = await supabase
-  .from('org_roles')
-  .select('id')
-  .eq('code', 'ADMIN')
-  .single();
-
-await supabase.from('org_user_roles').insert({
-  user_id: userId,
-  role_id: adminRole.id
-});
-```
-
----
-
-#### 4. **Slow Queries**
-
-**Cause**: Missing indexes or inefficient joins.
-
-**Solution**:
-```sql
--- Add indexes for frequently queried columns
-CREATE INDEX idx_catalog_metadata_publisher_org ON catalog_metadata(publisher_org_id);
-CREATE INDEX idx_data_points_indicator ON data_points(indicator_id);
-CREATE INDEX idx_data_points_resource_period ON data_points(resource_id, period_start);
-
--- Use EXPLAIN ANALYZE to identify bottlenecks
-EXPLAIN ANALYZE
-SELECT * FROM catalog_metadata
-WHERE publisher_org_id = '...'
-AND publication_status = 'PUBLISHED';
-```
-
----
-
-#### 5. **SECURITY DEFINER Functions Not Working**
-
-**Cause**: Missing `SET search_path = public` in function definition.
-
-**Solution**:
-```sql
-CREATE FUNCTION has_role(_role text)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public  -- ✅ Required!
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM org_user_roles ur
-    JOIN org_roles r ON ur.role_id = r.id
-    WHERE ur.user_id = auth.uid()
-    AND r.code = _role
-  );
-$$;
-```
-
----
-
-## 📚 Additional Resources
-
-- [Supabase Row Level Security Guide](https://supabase.com/docs/guides/auth/row-level-security)
-- [PostgreSQL SECURITY DEFINER Functions](https://www.postgresql.org/docs/current/sql-createfunction.html)
-- [JSON/JSONB Best Practices](https://www.postgresql.org/docs/current/datatype-json.html)
-
----
-
-## 📝 Changelog
-
-### Version 2.0 (Current)
-- ✅ Removed `profiles.role` column (security fix)
-- ✅ Removed `org_users.password_hash` column (security fix)
-- ✅ Exclusive use of `org_user_roles` for role management
-- ✅ Added `maintainers` JSONB field to `catalog_metadata`
-- ✅ Enhanced RLS policies with role-based checks
-- ✅ Added `telemetry_views` table for view tracking
-
-### Version 1.0
-- Initial schema design
-- Basic catalog metadata structure
-- RLS implementation
-- Organization hierarchy support
-
----
-
-**Document End** | Last Updated: 2024 | For AI Agents & Developers
+## Data Integrity
+
+### Unique Constraints
+- Dataset slugs must be unique
+- User emails must be unique
+- Indicator codes must be unique within a resource
+- Data points are unique per indicator, period, and resource
+
+### Foreign Key Constraints
+- All relationships are properly constrained with CASCADE deletes where appropriate
+- Organization ownership is enforced for datasets and users
+
+### Check Constraints
+- Publication status transitions are controlled
+- Data classification levels restrict access appropriately
+
+## Performance Considerations
+
+### Indexes
+- Full-text search on dataset metadata
+- Temporal range queries on datasets
+- Organization-based filtering
+- Time-series data access patterns
+- Audit log chronological access
+
+### Partitioning Strategy
+- Telemetry tables use time-based partitioning for large datasets
+- Audit events are partitioned by creation date
+
+### Query Optimization
+- Complex RLS policies are optimized for common access patterns
+- Aggregate functions provided for common analytics queries
+- Efficient pagination support for large datasets
+
+## Time-Series Resources & Ingestion Guidance
+
+To standardize yearly indicator datasets and drive meaningful visualizations:
+
+1. Resource Metadata (`catalog_resources`)
+   - Maintain `indicator_title`, `unit`, `frequency`, `aggregation_method`, `time_dimension`, `chart_type`, `interpretation`, `is_timeseries`
+   - `chart_type` should be one of `line`, `area`, `slope`, `kpi`, `bar`, `table`
+   - Set `is_timeseries = true` for time-trend resources so the frontend renders the appropriate charts automatically
+
+2. Data Format (Long/Normalized)
+   - Each row in `data_points` must represent the annual total for a single indicator and calendar period
+   - Required combination: `(indicator_id, resource_id, period_start)` unique per row
+   - Recommended ingestion pipeline:
+     1. Convert wide spreadsheets into long format with columns `(indicator_code, indicator_label, year, value, unit, notes?)`
+     2. Map indicator metadata into `data_indicators`
+     3. Create/maintain `data_table_view_columns` entries for each year (sorted ascending)
+     4. Upsert yearly totals into `data_points` using the uniqueness constraint
+
+3. Validation Checklist (pre-ingestion)
+   - Confirm all years in the expected range exist (no gaps unless justified)
+   - Ensure units and aggregation method are consistent across years
+   - Detect duplicate `(indicator, year)` rows before ingestion
+   - Flag mixed time grains (e.g., mixing quarterly and yearly data) for normalization
+
+4. Recommended Workflow
+   - Backfill metadata for existing resources with new fields (frequency, aggregation method, etc.)
+   - Add validation logic in ETL/admin upload flow to enforce the checklist above
+   - Tag resources with `is_timeseries` so UI can auto-select charts
+   - Store helpful narrative guidance in `interpretation` to surface insights in the portal
+
+This schema supports a comprehensive open data platform with proper access controls, audit trails, and performance optimizations for handling large volumes of data and users.

@@ -651,7 +651,11 @@ const DatasetDetail = () => {
             <TrendingUp className="w-6 h-6" />
             Infographic
           </h2>
-          <DatasetInfographic datasetId={dataset.id} datasetTitle={dataset.title} />
+          <DatasetInfographic
+            datasetId={dataset.id}
+            datasetTitle={dataset.title}
+            primaryResource={dataset.primaryResource}
+          />
         </section>
       </div>
       

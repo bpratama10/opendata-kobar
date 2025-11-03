@@ -1,109 +1,84 @@
-# OpenData Portal - Task Status & Issues
+# 🧭 Task: Standardize Indicator Dataset & Visualization Logic
 
-## High Priority Tasks
-
-### ✅ COMPLETED: Dataset Telemetry & Analytics Implementation
-
-**Status:** ✅ **COMPLETED**
-**Completion Date:** 2025-10-22
-
-#### What Was Fixed
-- ✅ Created `telemetry_views` table for tracking dataset page views
-- ✅ Added comprehensive telemetry aggregation functions
-- ✅ Implemented view tracking in DatasetDetail page (framework ready)
-- ✅ Implemented download tracking in DatasetDetail download button
-- ✅ Updated useDatasets hook to fetch real download and view counts
-- ✅ Fixed size/format retrieval from database distributions (no longer hardcoded)
-- ✅ Added view count support for "Most Viewed" sorting
-- ✅ Created database functions for efficient count aggregation
-- ✅ Added bulk telemetry queries for performance
-
-#### Database Changes
-- ✅ Created `telemetry_views` table with proper indexing and RLS
-- ✅ Created aggregation functions: `get_dataset_download_count`, `get_dataset_view_count`, `get_datasets_download_counts`, `get_datasets_view_counts`
-- ✅ Proper RLS policies for anonymous view tracking and authenticated access
-
-#### Code Changes
-- ✅ Updated DatasetDetail download handler to track downloads in `telemetry_downloads`
-- ✅ Modified useDatasets hook to fetch real counts from database functions
-- ✅ Enhanced data fetching to include distributions for accurate size/format info
-- ✅ Added viewCount to Dataset interface for sorting functionality
-- ✅ Implemented bulk telemetry queries for better performance
-
-#### Current Status
-**Telemetry system is now fully functional and ready for production.**
+## 🎯 Goal
+Ensure that the dataset structure and visualization logic in the Open Data Portal produce **meaningful charts** — especially for **time-based indicators** such as "Jumlah TTE Terbit".
 
 ---
 
-## ✅ COMPLETED: Critical Security Issues (Previously Completed)
+## ✅ Data Structure Tasks
 
-### Security Hardening - Role System Refactor
+- [ ] **Adopt a standardized “long format” for indicator datasets**, with the following structure example, look into datasets/a61ed2cc-be05-4a35-ac6e-6f802ed8a2a7/tables for a refrence:
+  | indicator_id | indicator_name | year | value | unit | notes |
+  |---------------|----------------|------|--------|------|-------|
+  | 1 | Jumlah TTE Terbit | 2022 | 79 | Rekaman |  |
+  | 1 | Jumlah TTE Terbit | 2023 | 172 | Rekaman |  |
+  | 1 | Jumlah TTE Terbit | 2024 | 265 | Rekaman |  |
 
-**Status:** ✅ Completed
-**Completed Date:** 2024-10-20
-
-#### Fixed Critical Security Issues
-- Removed `profiles.role` column to prevent privilege escalation
-- Removed `org_users.password_hash` to prevent credential exposure
-- Updated all RLS policies and security definer functions
-- Migrated all client code to use `org_user_roles` exclusively
-
----
-
-## ✅ COMPLETED: Theme Management with Icons (Previously Completed)
-
-### Theme Management with Icons
-
-**Status:** ✅ Completed
-**Completed Date:** 2024-10-17
-
-#### Implemented Features
-- Added `icon_url` column to `catalog_themes` table for SVG/PNG icon support
-- Implemented theme update functionality in `/admin/themes`
-- Implemented theme delete functionality with confirmation dialog
-- Created edit dialog with live icon preview
-- Updated home page to display themes with their custom icons
-- Visual card layout showing icon, theme name, and dataset count
-- Fallback to default globe icon when no custom icon is set
+- [ ] Each row must represent **total value for a given year** (not cumulative or partial values).
+- [ ] Use consistent **units**, **definitions**, and **aggregation methods** across years.
+- [ ] Add metadata fields in `catalog_metadata` or `catalog_resources`:
+  - [ ] `indicator_title`
+  - [ ] `unit`
+  - [ ] `frequency` (e.g., Tahunan, Triwulanan)
+  - [ ] `aggregation_method` (e.g., Total per tahun)
+  - [ ] `time_dimension` (e.g., year)
+  - [ ] `chart_type` (e.g., line, area, KPI)
+  - [ ] `interpretation` (optional description)
 
 ---
 
-## Remaining Issues & Recommendations
+## 📊 Visualization Logic Tasks
 
-### Performance Optimizations
-- Consider materialized views for frequently accessed telemetry aggregations
-- Implement caching strategy for popular datasets
-- Add database triggers for automatic real-time count updates
+- [ ] Replace **bar chart** for single-indicator datasets with more meaningful visuals:
+  - [ ] **Line chart** → emphasize growth over time.
+  - [ ] **Area chart** → show cumulative progression.
+  - [ ] **Slope chart** → show start vs end comparison.
+  - [ ] **KPI summary card** → highlight latest value and YoY change.
 
-### Security Enhancements
-- Rate limiting for view/download tracking to prevent abuse
-- Privacy-compliant handling of anonymous user tracking
-- GDPR compliance considerations for telemetry data
+- [ ] Disable or hide **donut/distribution chart** if there’s only one indicator (not meaningful).
+- [ ] Use **conditional rendering logic**:
+  ```ts
+  if (indicatorCount === 1) {
+    renderLineChart(data);
+  } else {
+    renderMultiSeriesChart(data);
+  }
 
-### UI/UX Improvements
-- Add view count display in dataset cards
-- "Most Viewed" dataset sorting in search filters
-- Analytics dashboard for administrators
-- Download trend visualization
 
-### API Development (Future)
-- RESTful API for dataset access
-- GraphQL endpoint for advanced queries
-- API rate limiting and authentication
+🧩 Schema Integration Tasks
 
----
+  - [ ] Standardize how catalog_metadata references yearly indicator datasets.
 
-## Current System Status
+  - [ ] Add logic in data ingestion to normalize wide → long format.
 
-### Working Features ✅
-- Dataset catalog with real-time telemetry
-- Search and filtering functionality
-- Theme-based categorization
-- Download tracking and analytics
-- Responsive admin interface
-- Secure role-based access control
+  - [ ] Tag datasets with "is_timeseries": true to trigger trend charts automatically.
 
-### Known Limitations 📋
-- View tracking is implemented but commented out (requires TypeScript types update)
-- Mock data still used in some UI components for demo purposes
-- Admin analytics dashboard needs basic telemetry visualization
+  - [ ] Validate data consistency before visualization:
+
+  - [ ] Check for missing years.
+
+  - [ ] Check for mixed cumulative/annual totals.
+
+🧠 Optional Enhancements
+
+  - [ ] Add a metadata-based visualization switcher:
+
+ -If chart_type = "line", render line chart.
+
+ -If chart_type = "kpi", render summary card.
+
+ -If multiple indicators, render grouped bar or multi-line.
+
+  - [ ] Add small sparkline mini-charts in dataset cards to preview 3-year trend.
+
+  - [ ] Implement a growth badge (+54%, -10%) next to latest value.
+
+🧾 Expected Output
+
+ - A consistent system where:
+
+ - Every yearly dataset has comparable totals.
+
+ - Visualization auto-selects the most meaningful chart type.
+
+ - Users understand not just numbers, but trends and growth.

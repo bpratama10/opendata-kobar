@@ -21,7 +21,31 @@ export interface Dataset {
   contact_email?: string;
   language?: string;
   maintainers?: string[];
+  primaryResource?: {
+    id: string;
+    name: string;
+    indicatorTitle?: string | null;
+    unit?: string | null;
+    frequency?: string | null;
+    aggregationMethod?: string | null;
+    timeDimension?: string | null;
+    chartType?: string | null;
+    interpretation?: string | null;
+    isTimeSeries?: boolean | null;
+  };
 }
+
+type TagRelation = {
+  catalog_tags?: {
+    name?: string | null;
+  } | null;
+};
+
+type ThemeRelation = {
+  catalog_themes?: {
+    name?: string | null;
+  } | null;
+};
 
 export const useDatasets = () => {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -48,6 +72,17 @@ export const useDatasets = () => {
             )
           ),
           catalog_resources (
+            id,
+            name,
+            resource_type,
+            indicator_title,
+            unit,
+            frequency,
+            aggregation_method,
+            time_dimension,
+            chart_type,
+            interpretation,
+            is_timeseries,
             catalog_distributions (
               media_type,
               byte_size,
@@ -81,16 +116,39 @@ export const useDatasets = () => {
       // Transform the data to match frontend expectations
       const transformedDatasets: Dataset[] = (metadataData || []).map((dataset) => {
         // Extract tags from the nested relationship
-        const tags = dataset.catalog_dataset_tags?.map((dt: any) => dt.catalog_tags?.name).filter(Boolean) || [];
+        const tags = Array.isArray(dataset.catalog_dataset_tags)
+          ? (dataset.catalog_dataset_tags as TagRelation[])
+              .map((relation) => relation.catalog_tags?.name)
+              .filter((name): name is string => typeof name === "string")
+          : [];
 
         // Extract themes from the nested relationship
-        const themes = dataset.catalog_dataset_themes?.map((dt: any) => dt.catalog_themes?.name).filter(Boolean) || [];
+        const themes = Array.isArray(dataset.catalog_dataset_themes)
+          ? (dataset.catalog_dataset_themes as ThemeRelation[])
+              .map((relation) => relation.catalog_themes?.name)
+              .filter((name): name is string => typeof name === "string")
+          : [];
 
         // Get file info from distributions
         const resources = dataset.catalog_resources || [];
         const mainResource = resources[0];
         const distributions = mainResource?.catalog_distributions || [];
         const mainDistribution = distributions[0];
+
+        const primaryResource = mainResource
+          ? {
+              id: mainResource.id,
+              name: mainResource.name,
+              indicatorTitle: mainResource.indicator_title ?? null,
+              unit: mainResource.unit ?? null,
+              frequency: mainResource.frequency ?? null,
+              aggregationMethod: mainResource.aggregation_method ?? null,
+              timeDimension: mainResource.time_dimension ?? null,
+              chartType: mainResource.chart_type ?? null,
+              interpretation: mainResource.interpretation ?? null,
+              isTimeSeries: mainResource.is_timeseries ?? null,
+            }
+          : undefined;
 
         // Get telemetry counts
         const downloadCount = downloadCountMap.get(dataset.id) || 0;
@@ -120,7 +178,8 @@ export const useDatasets = () => {
           language: dataset.language,
           maintainers: Array.isArray(dataset.maintainers)
             ? dataset.maintainers.filter((m): m is string => typeof m === 'string')
-            : []
+            : [],
+          primaryResource
         };
       });
 

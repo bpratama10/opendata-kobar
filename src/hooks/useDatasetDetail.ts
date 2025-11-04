@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dataset } from "./useDatasets";
 
@@ -39,7 +39,7 @@ export const useDatasetDetail = (slug: string) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDataset = async () => {
+  const fetchDataset = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -162,13 +162,13 @@ export const useDatasetDetail = (slug: string) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug]);
 
   useEffect(() => {
     if (slug) {
       fetchDataset();
     }
-  }, [slug]);
+  }, [slug, fetchDataset]);
 
   return {
     dataset,

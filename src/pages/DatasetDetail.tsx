@@ -14,6 +14,7 @@ import {
   Info,
   BarChart3,
   TrendingUp,
+  Percent,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ import { DatasetInfographic } from "@/components/DatasetInfographic";
 import { Footer } from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
 import { useDatasetTableData } from "@/hooks/useDatasetTableData";
+import { format, differenceInYears } from "date-fns";
 
 const DatasetDetail = () => {
   const { slug } = useParams();
@@ -36,6 +38,43 @@ const DatasetDetail = () => {
   const { dataset, loading, error } = useDatasetDetail(slug || "");
   const { indicators, dataPoints, columns } = useDatasetTableData(dataset?.id || "");
   const sessionIdRef = useRef<string | null>(null);
+
+  // Calculate Year-over-Year Change and Latest Value
+  // Calculate Year-over-Year Change across all indicators for the latest two visible periods
+  const visiblePeriodStarts = columns.map(col => col.period_start);
+  const latestVisiblePeriod = visiblePeriodStarts.length > 0 ? visiblePeriodStarts[visiblePeriodStarts.length - 1] : null;
+  const previousVisiblePeriod = visiblePeriodStarts.length > 1 ? visiblePeriodStarts[visiblePeriodStarts.length - 2] : null;
+
+  let yoyChange = null;
+  let latestPeriodSum = 0;
+  let previousPeriodSum = 0;
+
+  if (latestVisiblePeriod) {
+    latestPeriodSum = dataPoints
+      .filter((dp) => dp.period_start === latestVisiblePeriod)
+      .reduce((sum, dp) => sum + (dp.value || 0), 0);
+  }
+
+  if (previousVisiblePeriod) {
+    previousPeriodSum = dataPoints
+      .filter((dp) => dp.period_start === previousVisiblePeriod)
+      .reduce((sum, dp) => sum + (dp.value || 0), 0);
+  }
+
+  if (previousPeriodSum !== 0) {
+    yoyChange = ((latestPeriodSum - previousPeriodSum) / previousPeriodSum) * 100;
+  } else if (latestPeriodSum !== 0) {
+    yoyChange = 100; // Infinite growth from zero
+  } else {
+    yoyChange = 0; // No change from zero
+  }
+
+  // Calculate Total Value (sum of all indicators for the latest visible period)
+  const totalValue = latestVisiblePeriod
+    ? dataPoints
+        .filter((dp) => dp.period_start === latestVisiblePeriod)
+        .reduce((sum, dp) => sum + (dp.value || 0), 0)
+    : 0;
 
   const getDownloadSessionId = () => {
     if (sessionIdRef.current) {
@@ -421,7 +460,14 @@ const DatasetDetail = () => {
                           <Calendar className="w-4 h-4" />
                           Pembaruan Terakhir
                         </div>
-                        <p className="text-muted-foreground">{dataset.lastUpdated}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-muted-foreground">{dataset.lastUpdated}</p>
+                          {differenceInYears(new Date(), new Date(dataset.lastUpdated)) >= 1 ? (
+                            <Badge variant="destructive">Belum Dimutakhirkan</Badge>
+                          ) : (
+                            <Badge style={{ backgroundColor: '#046307', color: 'white' }}>Termuktahirkan</Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -603,6 +649,11 @@ const DatasetDetail = () => {
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
                         <span className="font-medium">{dataset.lastUpdated}</span>
+                        {differenceInYears(new Date(), new Date(dataset.lastUpdated)) >= 1 ? (
+                          <Badge variant="destructive">Belum Dimutakhirkan</Badge>
+                        ) : (
+                          <Badge style={{ backgroundColor: '#046307', color: 'white' }}>Termuktahirkan</Badge>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -645,10 +696,59 @@ const DatasetDetail = () => {
           <DatasetTable datasetId={dataset.id} />
         </section>
 
-        {/* Section 3: Infographic */}
+        {/* Section 3: Key Metrics Cards */}
         <section>
           <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
             <TrendingUp className="w-6 h-6" />
+            Key Metrics
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Year-over-Year Change
+                </CardTitle>
+                <Percent className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {yoyChange !== null
+                    ? `${yoyChange.toFixed(2)}%`
+                    : "N/A"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {latestVisiblePeriod && previousVisiblePeriod
+                    ? `from ${format(new Date(previousVisiblePeriod), "yyyy")} to ${format(new Date(latestVisiblePeriod), "yyyy")}`
+                    : "Insufficient data for YoY comparison"}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Value
+                </CardTitle>
+                <Info className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {totalValue.toLocaleString() || "N/A"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {latestVisiblePeriod
+                    ? `sum of all indicators for ${format(new Date(latestVisiblePeriod), "yyyy")}`
+                    : "No data available for total value"}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* Section 4: Infographic */}
+        <section>
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+            <BarChart3 className="w-6 h-6" />
             Infographic
           </h2>
           <DatasetInfographic

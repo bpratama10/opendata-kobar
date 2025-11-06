@@ -60,6 +60,7 @@ export default function AdminDatasetEdit() {
   const [loading, setLoading] = useState(false);
   const [fetchingDataset, setFetchingDataset] = useState(true);
   const [canEdit, setCanEdit] = useState(false);
+  const [isPriorityDataset, setIsPriorityDataset] = useState(false);
   const [licenses, setLicenses] = useState<License[]>([]);
   const [frequencies, setFrequencies] = useState<UpdateFrequency[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -140,6 +141,9 @@ export default function AdminDatasetEdit() {
       // RLS policies will handle access control automatically
       // If we got here and can read the dataset, we should be able to edit it
       setCanEdit(true);
+      
+      // Check if this is a priority dataset
+      setIsPriorityDataset(dataset.is_priority === true);
 
       // Fetch associated themes
       const { data: themeData } = await supabase
@@ -297,10 +301,17 @@ export default function AdminDatasetEdit() {
         ? maintainers.split(',').map(m => m.trim()).filter(m => m.length > 0)
         : [];
       
+      // For priority datasets, exclude title and slug from updates
+      const updateFields = isPriorityDataset 
+        ? Object.fromEntries(
+            Object.entries(datasetFields).filter(([key]) => key !== 'title' && key !== 'slug')
+          )
+        : datasetFields;
+
       const { error: updateError } = await supabase
         .from('catalog_metadata')
         .update({
-          ...datasetFields,
+          ...updateFields,
           publisher_org_id: selected_org_id,
           keywords: formData.keywords,
           maintainers: maintainersArray,
@@ -401,27 +412,46 @@ export default function AdminDatasetEdit() {
             <CardTitle>Dataset Information</CardTitle>
             <CardDescription>
               Update the information for this dataset
+              {isPriorityDataset && (
+                <span className="ml-2 inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20">
+                  Data Prioritas
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
+                <Label htmlFor="title">
+                  Title *
+                  {isPriorityDataset && (
+                    <span className="ml-2 text-xs text-muted-foreground">(Locked - Priority Data)</span>
+                  )}
+                </Label>
                 <Input
                   id="title"
                   value={formData.title}
                   onChange={(e) => handleTitleChange(e.target.value)}
                   placeholder="Enter dataset title"
+                  disabled={isPriorityDataset}
+                  className={isPriorityDataset ? "bg-muted cursor-not-allowed" : ""}
                 />
                 {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="slug">Slug *</Label>
+                <Label htmlFor="slug">
+                  Slug *
+                  {isPriorityDataset && (
+                    <span className="ml-2 text-xs text-muted-foreground">(Locked - Priority Data)</span>
+                  )}
+                </Label>
                 <Input
                   id="slug"
                   value={formData.slug}
                   onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
                   placeholder="dataset-slug"
+                  disabled={isPriorityDataset}
+                  className={isPriorityDataset ? "bg-muted cursor-not-allowed" : ""}
                 />
                 {errors.slug && <p className="text-sm text-destructive">{errors.slug}</p>}
               </div>

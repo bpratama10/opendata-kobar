@@ -1,16 +1,19 @@
 # Database Schema Documentation
 
-This document provides a comprehensive overview of the Supabase database schema for the Open Data Kobar platform. The schema is designed to manage open data catalogs, user organizations, data resources, and telemetry tracking.
+**Last Updated:** 2025-01-20
+
+This document provides a comprehensive overview of the Supabase database schema for the Open Data Kobar platform. The schema is designed to manage open data catalogs, user organizations, data resources, priority datasets, and telemetry tracking.
 
 ## Overview
 
 The database consists of several key domains:
 - **Organization & User Management** (`org_*` tables)
 - **Data Catalog** (`catalog_*` tables)
+- **Priority Data Management** (`priority_*` tables)
 - **Data Resources & Indicators** (`data_*` tables)
 - **Reference Data** (licenses, frequencies, classifications, etc.)
 - **Telemetry & Audit** (`telemetry_*` tables)
-- **Access Control** (policies, roles, permissions)
+- **Access Control** (API keys, policies, roles, permissions)
 
 ## Core Tables
 
@@ -31,7 +34,7 @@ Represents organizations that can publish or consume data.
 
 **Relationships:**
 - Self-referencing: `parent_id` → `org_organizations.id`
-- Referenced by: `org_users.org_id`, `catalog_metadata.org_id`, `catalog_metadata.publisher_org_id`
+- Referenced by: `org_users.org_id`, `catalog_metadata.org_id`, `catalog_metadata.publisher_org_id`, `priority_datasets.assigned_org`
 
 **Indexes:**
 - `idx_org_organizations_name`
@@ -53,23 +56,38 @@ Users within the system, linked to organizations.
 
 **Relationships:**
 - `org_id` → `org_organizations.id`
-- Referenced by: `catalog_metadata.created_by`, `catalog_metadata.updated_by`, `telemetry_audit_events.actor_id`, `telemetry_downloads.user_id`
+- Referenced by: `catalog_metadata.created_by`, `catalog_metadata.updated_by`, `telemetry_audit_events.actor_id`, `telemetry_downloads.user_id`, `priority_datasets.assigned_by`, `priority_datasets.claimed_by`
 
 **Indexes:**
 - `idx_org_users_org_id`
 - `idx_org_users_is_active`
+
+**RLS Policies:**
+- Admins can view all org users
+- Users can view their own org record
+- Only admins can insert/update/delete
 
 #### `org_roles`
 System roles for access control.
 
 **Columns:**
 - `id` (UUID, Primary Key) - Unique identifier
-- `code` (VARCHAR(40), UNIQUE, NOT NULL) - Role code (e.g., 'ADMIN', 'WALIDATA')
+- `code` (VARCHAR(40), UNIQUE, NOT NULL) - Role code
 - `name` (VARCHAR(100), NOT NULL) - Human-readable role name
 - `created_at` (TIMESTAMP) - Creation timestamp
 
+**Standard Roles:**
+- `ADMIN` - Full system access
+- `WALIDATA` - Data governance and validation
+- `KOORDINATOR` - Cross-organization coordination
+- `PRODUSEN` - Data producer/publisher
+- `VIEWER` - Read-only access
+
 **Relationships:**
 - Referenced by: `org_user_roles.role_id`
+
+**RLS Policies:**
+- Anyone can read roles (public reference data)
 
 #### `org_user_roles`
 Many-to-many relationship between users and roles.
@@ -87,6 +105,30 @@ Many-to-many relationship between users and roles.
 
 **Indexes:**
 - `idx_org_user_roles_role_id`
+
+**RLS Policies:**
+- Authenticated users can view user roles
+- Role-based user role management:
+  - ADMIN can assign any role
+  - WALIDATA can only assign VIEWER and PRODUSEN roles
+
+#### `profiles`
+Legacy user profile table (synced with auth.users).
+
+**Columns:**
+- `id` (UUID, Primary Key) - User identifier (matches auth.users.id)
+- `email` (VARCHAR(255), NOT NULL) - User email
+- `full_name` (VARCHAR(255)) - User full name
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+**Note:** The `role` column has been **REMOVED** for security. Roles are now exclusively managed via `org_user_roles`.
+
+**RLS Policies:**
+- Users can view their own profile
+- Admins can view all profiles
+- Users can update their own profile safely (excluding role)
+- Admins can update any profile
 
 ### Data Catalog
 
@@ -115,6 +157,9 @@ Core dataset metadata table containing all information about datasets.
 - `publication_status` (publication_status ENUM, DEFAULT 'DRAFT') - Current publication status
 - `keywords` (JSONB, DEFAULT []) - Dataset keywords/tags
 - `custom_fields` (JSONB, DEFAULT {}) - Additional custom metadata
+- `is_priority` (BOOLEAN, DEFAULT false) - Marks dataset as priority data
+- `priority_dataset_id` (UUID) - Link to priority_datasets table
+- `sync_lock` (BOOLEAN, DEFAULT false) - Prevents concurrent edits
 - `created_by` (UUID) - User who created the dataset
 - `updated_by` (UUID) - User who last updated the dataset
 - `unpublish_request_reason` (TEXT) - Reason for unpublish requests
@@ -129,6 +174,7 @@ Core dataset metadata table containing all information about datasets.
 - `updated_by` → `org_users.id`
 - `license_code` → `lisensi.code`
 - `update_frequency_code` → `freq_upd.code`
+- `priority_dataset_id` → `priority_datasets.id`
 - Referenced by: `catalog_resources.dataset_id`, `catalog_dataset_tags.dataset_id`, `catalog_dataset_themes.dataset_id`, `catalog_dataset_spatial_coverage.dataset_id`, `gov_dataset_policies.dataset_id`, `telemetry_views.dataset_id`
 
 **Indexes:**
@@ -137,7 +183,15 @@ Core dataset metadata table containing all information about datasets.
 - `idx_catalog_metadata_published`
 - `idx_catalog_metadata_temporal`
 - `idx_catalog_metadata_created_at`
+- `idx_catalog_metadata_priority_dataset_id`
 - Full-text search: `idx_catalog_metadata_fulltext`
+
+**RLS Policies:**
+- **Dataset viewing policy**: Public can view published public datasets; authenticated users can view their org's datasets or if ADMIN/WALIDATA/KOORDINATOR
+- **Dataset creation policy**: ADMIN, WALIDATA, or PRODUSEN (for own org) can create
+- **Dataset update policy**: ADMIN, WALIDATA, or PRODUSEN (for own org, DRAFT/PENDING_REVIEW only) can update
+- **Dataset deletion policy**: ADMIN, WALIDATA, or PRODUSEN (for own org, DRAFT/PENDING_REVIEW only) can delete
+- **PRODUSEN can request unpublish**: For their published datasets
 
 #### `catalog_resources`
 Represents different resources (tables, files, APIs) within a dataset.
@@ -147,14 +201,14 @@ Represents different resources (tables, files, APIs) within a dataset.
 - `dataset_id` (UUID, NOT NULL) - Parent dataset
 - `name` (VARCHAR(200), NOT NULL) - Resource name
 - `resource_type` (resource_type ENUM, NOT NULL) - Type of resource
-- `indicator_title` (TEXT) - Human-friendly title for the primary indicator contained in the resource
-- `unit` (TEXT) - Standardized measurement unit used across all periods (e.g., "Rekaman")
-- `frequency` (TEXT) - Update cadence descriptor (e.g., "Tahunan", "Triwulanan")
-- `aggregation_method` (TEXT) - How yearly totals are aggregated (e.g., "Total per tahun")
-- `time_dimension` (TEXT, DEFAULT 'year') - Canonical time axis label used to render charts
-- `chart_type` (TEXT) - Preferred chart to render (line, area, slope, kpi, bar, table)
-- `interpretation` (TEXT) - Optional human-readable insight to display alongside charts
-- `is_timeseries` (BOOLEAN, DEFAULT false) - Signals that the resource should be visualized as a temporal trend
+- `indicator_title` (TEXT) - Human-friendly title for the primary indicator
+- `unit` (TEXT) - Standardized measurement unit
+- `frequency` (TEXT) - Update cadence descriptor
+- `aggregation_method` (TEXT) - How yearly totals are aggregated
+- `time_dimension` (TEXT, DEFAULT 'year') - Canonical time axis label
+- `chart_type` (TEXT) - Preferred chart type (line, area, slope, kpi, bar, table)
+- `interpretation` (TEXT) - Human-readable insight
+- `is_timeseries` (BOOLEAN, DEFAULT false) - Signals temporal trend visualization
 - `schema_json` (JSONB, DEFAULT {}) - Schema definition for structured data
 - `description` (TEXT) - Resource description
 - `created_at` (TIMESTAMP) - Creation timestamp
@@ -164,12 +218,9 @@ Represents different resources (tables, files, APIs) within a dataset.
 - `dataset_id` → `catalog_metadata.id`
 - Referenced by: `catalog_distributions.resource_id`, `data_indicators.resource_id`, `data_points.resource_id`, `data_table_view_columns.resource_id`
 
-**Constraints:**
-- `chart_type` must be null or one of the supported visualization types (`line`, `area`, `slope`, `kpi`, `bar`, `table`)
-
-**Indexes:**
-- `idx_catalog_resources_dataset_id`
-- `idx_catalog_resources_resource_type`
+**RLS Policies:**
+- **Resource viewing policy**: Can view if can view parent dataset
+- **Resource management policy**: Can manage if can manage parent dataset
 
 #### `catalog_distributions`
 File distributions or access points for resources.
@@ -189,9 +240,73 @@ File distributions or access points for resources.
 - `resource_id` → `catalog_resources.id`
 - Referenced by: `data_points.distribution_id`, `telemetry_downloads.distribution_id`
 
+**RLS Policies:**
+- **Distribution viewing policy**: Can view if can view parent resource
+- **Distribution management policy**: Can manage if can manage parent resource
+
+### Priority Data Management
+
+#### `priority_datasets`
+Central government priority datasets that need to be assigned to organizations.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique priority dataset identifier
+- `code` (VARCHAR, NOT NULL) - Dataset code/number
+- `name` (TEXT, NOT NULL) - Dataset name
+- `operational_definition` (TEXT) - Detailed operational definition
+- `data_type` (VARCHAR) - Type of data
+- `proposing_agency` (VARCHAR) - Agency that proposed the dataset
+- `producing_agency` (VARCHAR) - Agency responsible for producing data
+- `source_reference` (TEXT) - Reference to data source
+- `data_depth_level` (VARCHAR) - Level of data granularity
+- `update_schedule` (VARCHAR) - How often data should be updated
+- `status` (dataset_status ENUM, DEFAULT 'unassigned') - Current assignment status
+- `assigned_org` (UUID) - Organization assigned to produce this data
+- `assigned_by` (UUID) - User who assigned the dataset
+- `assigned_at` (TIMESTAMP) - When assignment was made
+- `claimed_by` (UUID) - User who claimed the dataset (legacy)
+- `claimed_at` (TIMESTAMP) - When dataset was claimed (legacy)
+- `created_at` (TIMESTAMP) - Creation timestamp
+- `updated_at` (TIMESTAMP) - Last update timestamp
+
+**Relationships:**
+- `assigned_org` → `org_organizations.id`
+- `assigned_by` → `org_users.id`
+- `claimed_by` → `org_users.id`
+- Referenced by: `catalog_metadata.priority_dataset_id`, `priority_dataset_logs.priority_dataset_id`
+
 **Indexes:**
-- `idx_catalog_distributions_resource_id`
-- `idx_catalog_distributions_version`
+- `idx_priority_datasets_status`
+- `idx_priority_datasets_assigned_org`
+- `idx_priority_datasets_code`
+
+**RLS Policies:**
+- **Admins can manage all priority datasets**: ADMIN role has full access
+- **Coordinators can manage all priority datasets**: KOORDINATOR role has full access
+- **Organizations can view their assigned/claimed datasets**: Users can view datasets assigned to their org
+- **Public access for unassigned datasets**: Anyone can view unassigned datasets
+
+#### `priority_dataset_logs`
+Audit log for priority dataset actions.
+
+**Columns:**
+- `id` (INTEGER, Primary Key) - Sequential log identifier
+- `priority_dataset_id` (UUID) - Associated priority dataset
+- `action` (priority_action ENUM, NOT NULL) - Action performed
+- `actor_id` (UUID) - User who performed the action
+- `org_id` (UUID) - Organization context
+- `notes` (TEXT) - Additional notes about the action
+- `timestamp` (TIMESTAMP, DEFAULT now()) - When action occurred
+
+**Relationships:**
+- `priority_dataset_id` → `priority_datasets.id`
+- `actor_id` → `org_users.id`
+- `org_id` → `org_organizations.id`
+
+**RLS Policies:**
+- **Admins can view all priority dataset logs**: ADMIN role
+- **Coordinators can view all priority dataset logs**: KOORDINATOR role
+- **Organizations can view their own priority dataset logs**: Filtered by org_id
 
 ### Data Resources & Indicators
 
@@ -217,8 +332,9 @@ Defines indicators/metrics within a data resource.
 **Constraints:**
 - Unique: `(resource_id, code)`
 
-**Indexes:**
-- `idx_data_indicators_resource_id`
+**RLS Policies:**
+- **Indicator viewing policy**: Can view if can view parent resource
+- **Indicator management policy**: Can manage if can manage parent resource
 
 #### `data_points`
 Actual data values for indicators at specific time periods.
@@ -233,11 +349,11 @@ Actual data values for indicators at specific time periods.
 - `value` (NUMERIC(20,4)) - Data value
 - `qualifier` (qualifier_type ENUM, DEFAULT 'OFFICIAL') - Data quality qualifier
 - `distribution_id` (UUID) - Associated distribution
-- `distribution_key` (STRING) - Distribution-specific key
+- `distribution_key` (TEXT) - Distribution-specific key
 - `attrs` (JSONB) - Additional attributes
-- `row_dimension_value` (STRING) - Row dimension value
-- `sub_header_value` (STRING) - Sub-header value
-- `top_header_value` (STRING) - Top header value
+- `row_dimension_value` (TEXT) - Row dimension value
+- `sub_header_value` (TEXT) - Sub-header value
+- `top_header_value` (TEXT) - Top header value
 - `created_at` (TIMESTAMP) - Creation timestamp
 - `updated_at` (TIMESTAMP) - Last update timestamp
 
@@ -249,10 +365,9 @@ Actual data values for indicators at specific time periods.
 **Constraints:**
 - Unique: `(indicator_id, period_start, resource_id)`
 
-**Indexes:**
-- `idx_data_points_resource_period`
-- `idx_data_points_indicator_period`
-- `unique_data_point_indicator_period_resource`
+**RLS Policies:**
+- **Data points viewing policy**: Can view if can view parent resource
+- **Data points management policy**: Can manage if can manage parent resource
 
 #### `data_table_view_columns`
 Configuration for table view column display.
@@ -274,9 +389,9 @@ Configuration for table view column display.
 **Constraints:**
 - Unique: `(resource_id, period_start)`
 
-**Indexes:**
-- `idx_data_table_view_columns_resource_order`
-- `idx_data_table_view_columns_resource_hidden`
+**RLS Policies:**
+- **Table view columns viewing policy**: Can view if can view parent resource
+- **Table view columns management policy**: Can manage if can manage parent resource
 
 ### Reference Data
 
@@ -289,8 +404,8 @@ License definitions for datasets.
 - `url` (VARCHAR(255)) - License URL
 - `notes` (TEXT) - Additional notes
 
-**Relationships:**
-- Referenced by: `catalog_metadata.license_code`
+**RLS Policies:**
+- Anyone can read licenses (public reference data)
 
 #### `freq_upd`
 Update frequency definitions.
@@ -300,8 +415,19 @@ Update frequency definitions.
 - `name` (VARCHAR(40), NOT NULL) - Frequency name
 - `notes` (TEXT) - Additional notes
 
-**Relationships:**
-- Referenced by: `catalog_metadata.update_frequency_code`
+**RLS Policies:**
+- Anyone can read frequencies (public reference data)
+
+#### `catalog_data_classifications`
+Data classification codes.
+
+**Columns:**
+- `code` (VARCHAR, Primary Key) - Classification code
+- `name` (VARCHAR, NOT NULL) - Classification name
+- `notes` (TEXT) - Additional notes
+
+**RLS Policies:**
+- Anyone can read classifications (public reference data)
 
 #### `catalog_tags`
 Dataset tags for categorization.
@@ -310,8 +436,9 @@ Dataset tags for categorization.
 - `id` (UUID, Primary Key) - Unique tag identifier
 - `name` (VARCHAR(80), UNIQUE, NOT NULL) - Tag name
 
-**Relationships:**
-- Referenced by: `catalog_dataset_tags.tag_id`
+**RLS Policies:**
+- Anyone can read tags
+- Authenticated users can create/update/delete tags
 
 #### `catalog_themes`
 Dataset themes for categorization.
@@ -320,7 +447,11 @@ Dataset themes for categorization.
 - `id` (UUID, Primary Key) - Unique theme identifier
 - `code` (VARCHAR(50), UNIQUE, NOT NULL) - Theme code
 - `name` (VARCHAR(120), NOT NULL) - Theme name
-- `icon_url` (VARCHAR(255)) - Theme icon URL
+- `icon_url` (TEXT) - Theme icon URL
+
+**RLS Policies:**
+- Anyone can read themes
+- Authenticated users can create/update/delete themes
 
 #### `spatial_units`
 Geographic/spatial units for data coverage.
@@ -337,9 +468,8 @@ Geographic/spatial units for data coverage.
 - Self-referencing: `parent_id` → `spatial_units.id`
 - Referenced by: `catalog_dataset_spatial_coverage.spatial_id`
 
-**Indexes:**
-- `idx_spatial_units_level`
-- `idx_spatial_units_code`
+**RLS Policies:**
+- Anyone can view spatial units (public reference data)
 
 ### Junction Tables
 
@@ -350,15 +480,12 @@ Many-to-many relationship between datasets and tags.
 - `dataset_id` (UUID, NOT NULL) - Dataset identifier
 - `tag_id` (UUID, NOT NULL) - Tag identifier
 
-**Relationships:**
-- `dataset_id` → `catalog_metadata.id`
-- `tag_id` → `catalog_tags.id`
-
 **Constraints:**
 - Primary Key: `(dataset_id, tag_id)`
 
-**Indexes:**
-- `idx_catalog_dataset_tags_tag_id`
+**RLS Policies:**
+- Anyone can view dataset tags
+- Authenticated users can manage dataset tags
 
 #### `catalog_dataset_themes`
 Many-to-many relationship between datasets and themes.
@@ -367,12 +494,12 @@ Many-to-many relationship between datasets and themes.
 - `dataset_id` (UUID, NOT NULL) - Dataset identifier
 - `theme_id` (UUID, NOT NULL) - Theme identifier
 
-**Relationships:**
-- `dataset_id` → `catalog_metadata.id`
-- `theme_id` → `catalog_themes.id`
-
 **Constraints:**
 - Primary Key: `(dataset_id, theme_id)`
+
+**RLS Policies:**
+- Anyone can view dataset themes
+- Authenticated users can manage dataset themes
 
 #### `catalog_dataset_spatial_coverage`
 Many-to-many relationship between datasets and spatial coverage areas.
@@ -381,14 +508,34 @@ Many-to-many relationship between datasets and spatial coverage areas.
 - `dataset_id` (UUID, NOT NULL) - Dataset identifier
 - `spatial_id` (UUID, NOT NULL) - Spatial unit identifier
 
-**Relationships:**
-- `dataset_id` → `catalog_metadata.id`
-- `spatial_id` → `spatial_units.id`
-
 **Constraints:**
 - Primary Key: `(dataset_id, spatial_id)`
 
+**RLS Policies:**
+- Anyone can view spatial coverage
+- Authenticated users can manage spatial coverage
+
 ### Access Control
+
+#### `api_keys`
+API keys for programmatic access to the platform.
+
+**Columns:**
+- `id` (UUID, Primary Key) - Unique API key identifier
+- `user_id` (UUID, NOT NULL) - Owner of the API key
+- `key_prefix` (TEXT, NOT NULL) - Visible prefix of the key
+- `key_hash` (TEXT, NOT NULL) - Hashed version of the full key
+- `name` (TEXT) - Friendly name for the key
+- `is_active` (BOOLEAN, DEFAULT true) - Whether key is active
+- `last_used_at` (TIMESTAMP) - Last usage timestamp
+- `created_at` (TIMESTAMP) - Creation timestamp
+
+**Relationships:**
+- `user_id` → `org_users.id`
+
+**RLS Policies:**
+- **Users can view own API keys**: Filtered by user_id
+- **Admins can manage all API keys**: ADMIN or WALIDATA roles have full access
 
 #### `gov_dataset_policies`
 Government dataset access policies.
@@ -406,10 +553,8 @@ Government dataset access policies.
 **Relationships:**
 - `dataset_id` → `catalog_metadata.id`
 
-**Indexes:**
-- `idx_gov_dataset_policies_dataset_id`
-- `idx_gov_dataset_policies_subject`
-- `idx_gov_dataset_policies_rule`
+**RLS Policies:**
+- Authenticated users can view dataset policies
 
 ### Telemetry & Audit
 
@@ -428,10 +573,9 @@ Audit log for system actions.
 **Relationships:**
 - `actor_id` → `org_users.id`
 
-**Indexes:**
-- `idx_telemetry_audit_events_actor_id`
-- `idx_telemetry_audit_events_object`
-- `idx_telemetry_audit_events_created_at`
+**RLS Policies:**
+- **Authenticated users can view audit events**: Logged-in users can view
+- **Users can create audit events**: Any authenticated user can create
 
 #### `telemetry_downloads`
 Download tracking for distributions.
@@ -448,12 +592,10 @@ Download tracking for distributions.
 **Relationships:**
 - `distribution_id` → `catalog_distributions.id`
 
-**Indexes:**
-- `idx_telemetry_downloads_distribution_id`
-- `idx_telemetry_downloads_user_id`
-- `idx_telemetry_downloads_created_at`
-- `idx_telemetry_downloads_channel`
-- `idx_telemetry_downloads_session_id`
+**RLS Policies:**
+- **Anyone can view download logs**: Public access for transparency
+- **Authenticated users can log downloads**: With rate limiting via `can_log_download()`
+- **Guests can log downloads with session cooldown**: Anonymous tracking with 30-minute cooldown
 
 #### `telemetry_views`
 Dataset view tracking.
@@ -463,29 +605,17 @@ Dataset view tracking.
 - `dataset_id` (UUID, NOT NULL) - Viewed dataset
 - `user_id` (UUID) - Viewing user (null for anonymous)
 - `ip_address` (INET) - Viewer IP address
-- `referrer` (VARCHAR(255)) - HTTP referrer
-- `session_id` (TEXT) - Session identifier
+- `referrer` (TEXT) - HTTP referrer
+- `session_id` (VARCHAR) - Session identifier
 - `user_agent` (TEXT) - Browser user agent
 - `created_at` (TIMESTAMP) - View timestamp
 
 **Relationships:**
 - `dataset_id` → `catalog_metadata.id`
 
-**Indexes:**
-- `idx_telemetry_views_dataset_id`
-- `idx_telemetry_views_created_at`
-
-### Legacy Tables
-
-#### `profiles`
-Legacy user profile table (being phased out in favor of org_users).
-
-**Columns:**
-- `id` (UUID, Primary Key) - User identifier
-- `email` (VARCHAR(255), NOT NULL) - User email
-- `full_name` (VARCHAR(255)) - User full name
-- `created_at` (TIMESTAMP) - Creation timestamp
-- `updated_at` (TIMESTAMP) - Last update timestamp
+**RLS Policies:**
+- **Anyone can insert view records**: Public tracking
+- **Users can view their own view records**: Filtered by user_id
 
 ## Enums
 
@@ -551,111 +681,166 @@ Legacy user profile table (being phased out in favor of org_users).
 - `QUARTER` - Quarterly data
 - `MONTH` - Monthly data
 
+### `dataset_status`
+- `unassigned` - Priority dataset not yet assigned
+- `assigned` - Assigned to an organization by admin/coordinator
+- `claimed` - Claimed by an organization (legacy)
+
+### `priority_action`
+- `assign` - Dataset assigned to organization
+- `claim` - Dataset claimed by organization (legacy)
+- `update` - Dataset metadata updated
+- `unassign` - Assignment removed
+- `converted` - Converted to catalog dataset
+- `reset` - Full reset to unassigned status
+
 ## Database Functions
 
-### `auth_org_id()`
-Returns the current user's organization ID.
+### Role & Permission Functions
 
-**Returns:** `UUID`
-
-### `get_user_org_id()`
-Returns the current user's organization ID (alias for auth_org_id).
-
-**Returns:** `UUID`
-
-### `has_role(_role_code)`
+#### `has_role(_role_code TEXT)`
 Checks if the current user has a specific role.
 
-**Parameters:**
-- `_role_code` (TEXT) - Role code to check
+**Security:** SECURITY DEFINER - Bypasses RLS to prevent recursion
 
 **Returns:** `BOOLEAN`
 
-### `is_admin(_user_id?)`
+**Example:**
+```sql
+SELECT has_role('ADMIN'); -- true if user has ADMIN role
+```
+
+#### `is_admin(_user_id UUID DEFAULT auth.uid())`
 Checks if a user has admin privileges.
 
-**Parameters:**
-- `_user_id` (UUID, optional) - User ID to check (defaults to current user)
+**Security:** SECURITY DEFINER
 
 **Returns:** `BOOLEAN`
 
-### `has_admin_or_walidata_role()`
+#### `has_admin_or_walidata_role()`
 Checks if current user has admin or walidata role.
 
-**Returns:** `BOOLEAN`
-
-### `can_log_download(p_distribution_id, p_session_id, p_user_id)`
-Checks if a download can be logged (for rate limiting).
-
-**Parameters:**
-- `p_distribution_id` (UUID) - Distribution being downloaded
-- `p_session_id` (TEXT) - Session identifier
-- `p_user_id` (UUID) - User identifier
+**Security:** SECURITY DEFINER
 
 **Returns:** `BOOLEAN`
 
-### `can_modify_user_role(_target_role_code)`
+#### `can_modify_user_role(_target_role_code TEXT)`
 Checks if current user can modify users with a specific role.
 
-**Parameters:**
-- `_target_role_code` (TEXT) - Target role code
+**Rules:**
+- ADMIN can modify any role
+- WALIDATA can only modify VIEWER and PRODUSEN roles
+
+**Security:** SECURITY DEFINER
 
 **Returns:** `BOOLEAN`
 
-### `get_dataset_download_count(dataset_id_param)`
+### Organization Functions
+
+#### `auth_org_id()`
+Returns the current user's organization ID.
+
+**Security:** SECURITY DEFINER
+
+**Returns:** `UUID`
+
+#### `get_user_org_id()`
+Alias for `auth_org_id()`.
+
+**Returns:** `UUID`
+
+### Telemetry Functions
+
+#### `get_dataset_download_count(dataset_id_param UUID)`
 Gets total download count for a dataset.
 
-**Parameters:**
-- `dataset_id_param` (UUID) - Dataset identifier
+**Returns:** `BIGINT`
 
-**Returns:** `INTEGER`
-
-### `get_dataset_view_count(dataset_id_param)`
+#### `get_dataset_view_count(dataset_id_param UUID)`
 Gets total view count for a dataset.
 
-**Parameters:**
-- `dataset_id_param` (UUID) - Dataset identifier
+**Returns:** `BIGINT`
 
-**Returns:** `INTEGER`
-
-### `get_datasets_download_counts(dataset_ids)`
+#### `get_datasets_download_counts(dataset_ids UUID[])`
 Gets download counts for multiple datasets.
 
-**Parameters:**
-- `dataset_ids` (UUID[]) - Array of dataset identifiers
+**Returns:** `TABLE(dataset_id UUID, download_count BIGINT)`
 
-**Returns:** `TABLE(dataset_id UUID, download_count INTEGER)`
-
-### `get_datasets_view_counts(dataset_ids)`
+#### `get_datasets_view_counts(dataset_ids UUID[])`
 Gets view counts for multiple datasets.
 
-**Parameters:**
-- `dataset_ids` (UUID[]) - Array of dataset identifiers
+**Returns:** `TABLE(dataset_id UUID, view_count BIGINT)`
 
-**Returns:** `TABLE(dataset_id UUID, view_count INTEGER)`
+#### `can_log_download(p_distribution_id UUID, p_user_id UUID, p_session_id TEXT)`
+Checks if a download can be logged (30-minute rate limit).
 
-### `get_user_role(user_id)`
-Gets the primary role code for a user.
+**Returns:** `BOOLEAN`
 
-**Parameters:**
-- `user_id` (UUID) - User identifier
+### Priority Dataset Functions
+
+#### `fn_convert_priority_to_dataset(p_priority_dataset_id UUID, p_assignee_org_id UUID, p_user_id UUID)`
+Converts a priority dataset to a catalog dataset.
+
+**Process:**
+1. Fetches priority dataset
+2. Generates unique slug
+3. Creates catalog_metadata entry with:
+   - `title` from priority dataset name
+   - `is_priority = true`
+   - `priority_dataset_id` link
+   - `publication_status = 'DRAFT'`
+4. Logs conversion action
+
+**Returns:** `UUID` (new catalog_metadata.id)
+
+**Security:** SECURITY DEFINER
+
+### User Management Functions
+
+#### `get_user_role(user_id UUID)`
+Gets the primary role code for a user (legacy function).
 
 **Returns:** `TEXT`
 
+**Note:** With multi-role support, use `has_role()` instead.
+
+#### `handle_new_user()`
+Trigger function for new user registration.
+
+**Process:**
+1. Creates profile entry
+2. Creates org_users entry
+3. Assigns default VIEWER role
+
+**Returns:** Trigger result
+
 ## Row Level Security (RLS)
 
-All tables have Row Level Security enabled with policies controlling access based on:
+All tables have Row Level Security enabled. Policies control access based on:
 
-1. **Organization-based access**: Users can access data from their organization
-2. **Public data access**: Published public datasets are accessible to all
-3. **Role-based permissions**: Admin and Walidata roles have broader access
-4. **Publication status**: Only published datasets are publicly visible
+### Access Control Layers
 
-Key policies include:
-- Public datasets are viewable by everyone when published
-- Users can manage data within their organization
-- Admin/Walidata roles have system-wide access
-- Audit events track all data access and modifications
+1. **Public Access**: Published public datasets viewable by everyone
+2. **Organization-based**: Users access their organization's data
+3. **Role-based**: ADMIN/WALIDATA have broader access
+4. **Publication Status**: Draft/pending datasets hidden from public
+
+### Critical Security Rules
+
+**NEVER check roles client-side for security:**
+```typescript
+// ❌ WRONG - Can be bypassed
+if (userRole === 'admin') { allowAccess(); }
+
+// ✅ CORRECT - RLS enforces on database
+const { data } = await supabase.from('catalog_metadata').select('*');
+// RLS automatically filters based on actual roles
+```
+
+**Roles MUST be in separate table:**
+- `org_user_roles` table stores role assignments
+- RLS policies on org_user_roles prevent self-assignment
+- Security definer functions check roles without recursion
 
 ## Key Relationships
 
@@ -669,7 +854,8 @@ catalog_metadata (dataset)
 │   └── data_table_view_columns (display configuration)
 ├── catalog_dataset_tags (categorization)
 ├── catalog_dataset_themes (theming)
-└── catalog_dataset_spatial_coverage (geographic coverage)
+├── catalog_dataset_spatial_coverage (geographic coverage)
+└── priority_dataset_id → priority_datasets (if priority data)
 ```
 
 ### Organization Hierarchy
@@ -677,11 +863,16 @@ catalog_metadata (dataset)
 org_organizations (hierarchical)
 └── org_users (organization members)
     └── org_user_roles (user permissions)
+        └── org_roles (role definitions)
 ```
 
-### User Data Flow
+### Priority Data Flow
 ```
-org_users → catalog_metadata → catalog_resources → data_indicators → data_points
+priority_datasets (central government list)
+├── assigned_org → org_organizations
+├── assigned_by → org_users
+├── priority_dataset_logs (audit trail)
+└── catalog_metadata.priority_dataset_id (converted datasets)
 ```
 
 ## Data Integrity
@@ -691,14 +882,18 @@ org_users → catalog_metadata → catalog_resources → data_indicators → dat
 - User emails must be unique
 - Indicator codes must be unique within a resource
 - Data points are unique per indicator, period, and resource
+- Priority dataset codes should be unique
+- API key prefixes + user combinations must be unique
 
 ### Foreign Key Constraints
-- All relationships are properly constrained with CASCADE deletes where appropriate
-- Organization ownership is enforced for datasets and users
+- All relationships are properly constrained
+- CASCADE deletes where appropriate
+- Organization ownership enforced for datasets and users
 
 ### Check Constraints
-- Publication status transitions are controlled
+- Publication status transitions controlled
 - Data classification levels restrict access appropriately
+- Time grain types validated
 
 ## Performance Considerations
 
@@ -708,44 +903,29 @@ org_users → catalog_metadata → catalog_resources → data_indicators → dat
 - Organization-based filtering
 - Time-series data access patterns
 - Audit log chronological access
-
-### Partitioning Strategy
-- Telemetry tables use time-based partitioning for large datasets
-- Audit events are partitioned by creation date
+- Priority dataset status and code lookups
+- Role-based access lookups
 
 ### Query Optimization
-- Complex RLS policies are optimized for common access patterns
-- Aggregate functions provided for common analytics queries
+- Complex RLS policies optimized for common access patterns
+- Aggregate functions for analytics queries
 - Efficient pagination support for large datasets
+- Security definer functions prevent recursive RLS checks
 
-## Time-Series Resources & Ingestion Guidance
+## Migration History
 
-To standardize yearly indicator datasets and drive meaningful visualizations:
+**Key Migrations:**
+- Initial schema setup
+- Role system overhaul (removed profiles.role)
+- Priority datasets implementation
+- API keys system
+- Enhanced RLS policies
+- Priority dataset reset capability
+- Multi-chart dashboard support
 
-1. Resource Metadata (`catalog_resources`)
-   - Maintain `indicator_title`, `unit`, `frequency`, `aggregation_method`, `time_dimension`, `chart_type`, `interpretation`, `is_timeseries`
-   - `chart_type` should be one of `line`, `area`, `slope`, `kpi`, `bar`, `table`
-   - Set `is_timeseries = true` for time-trend resources so the frontend renders the appropriate charts automatically
-
-2. Data Format (Long/Normalized)
-   - Each row in `data_points` must represent the annual total for a single indicator and calendar period
-   - Required combination: `(indicator_id, resource_id, period_start)` unique per row
-   - Recommended ingestion pipeline:
-     1. Convert wide spreadsheets into long format with columns `(indicator_code, indicator_label, year, value, unit, notes?)`
-     2. Map indicator metadata into `data_indicators`
-     3. Create/maintain `data_table_view_columns` entries for each year (sorted ascending)
-     4. Upsert yearly totals into `data_points` using the uniqueness constraint
-
-3. Validation Checklist (pre-ingestion)
-   - Confirm all years in the expected range exist (no gaps unless justified)
-   - Ensure units and aggregation method are consistent across years
-   - Detect duplicate `(indicator, year)` rows before ingestion
-   - Flag mixed time grains (e.g., mixing quarterly and yearly data) for normalization
-
-4. Recommended Workflow
-   - Backfill metadata for existing resources with new fields (frequency, aggregation method, etc.)
-   - Add validation logic in ETL/admin upload flow to enforce the checklist above
-   - Tag resources with `is_timeseries` so UI can auto-select charts
-   - Store helpful narrative guidance in `interpretation` to surface insights in the portal
-
-This schema supports a comprehensive open data platform with proper access controls, audit trails, and performance optimizations for handling large volumes of data and users.
+This schema supports a comprehensive open data platform with:
+- Proper role-based access controls
+- Comprehensive audit trails
+- Priority data workflow management
+- Performance optimizations for large-scale data
+- Security-first architecture

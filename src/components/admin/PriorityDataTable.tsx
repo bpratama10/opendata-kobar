@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -178,9 +178,29 @@ export function PriorityDataTable() {
               <TableCell>{dataset.code}</TableCell>
               <TableCell>{dataset.name}</TableCell>
               <TableCell>
-                <div className="max-w-xs truncate" title={dataset.operational_definition}>
-                  {dataset.operational_definition || "N/A"}
-                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Badge 
+                      variant={dataset.operational_definition ? "default" : "destructive"}
+                      className="cursor-pointer"
+                    >
+                      {dataset.operational_definition ? "View Definition" : "Missing"}
+                    </Badge>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Operational Definition</DialogTitle>
+                      <DialogDescription>
+                        {dataset.name} ({dataset.code})
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="mt-4 max-h-96 overflow-y-auto">
+                      <p className="text-sm whitespace-pre-wrap">
+                        {dataset.operational_definition || "No operational definition provided for this dataset."}
+                      </p>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </TableCell>
               <TableCell>{dataset.producing_agency}</TableCell>
               <TableCell>{dataset.update_schedule}</TableCell>

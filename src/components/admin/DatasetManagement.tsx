@@ -307,8 +307,7 @@ export function DatasetManagement() {
                           <Badge variant="outline">{dataset.classification_code}</Badge>
                           {dataset.is_priority && (
                             <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
-                              <Star className="w-3 h-3 mr-1" />
-                              Priority Data
+                              Prioritas
                             </Badge>
                           )}
                         </div>

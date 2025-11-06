@@ -1192,7 +1192,7 @@ export type Database = {
       org_type: "WALIDATA" | "PRODUSEN_DATA" | "KOORDINATOR" | "LAINNYA"
       policy_rule: "VIEW" | "DOWNLOAD" | "UPDATE" | "ADMIN"
       policy_subject_type: "USER" | "ROLE" | "ORG"
-      priority_action: "assign" | "claim" | "update" | "unassign"
+      priority_action: "assign" | "claim" | "update" | "unassign" | "converted"
       publication_status: "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "REJECTED"
       qualifier_type: "NA" | "OFFICIAL" | "PRELIM" | "EST"
       resource_type: "TABLE" | "FILE" | "API" | "LINK"
@@ -1332,7 +1332,7 @@ export const Constants = {
       org_type: ["WALIDATA", "PRODUSEN_DATA", "KOORDINATOR", "LAINNYA"],
       policy_rule: ["VIEW", "DOWNLOAD", "UPDATE", "ADMIN"],
       policy_subject_type: ["USER", "ROLE", "ORG"],
-      priority_action: ["assign", "claim", "update", "unassign"],
+      priority_action: ["assign", "claim", "update", "unassign", "converted"],
       publication_status: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "REJECTED"],
       qualifier_type: ["NA", "OFFICIAL", "PRELIM", "EST"],
       resource_type: ["TABLE", "FILE", "API", "LINK"],

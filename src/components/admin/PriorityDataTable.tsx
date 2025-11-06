@@ -35,20 +35,40 @@ type PriorityDataset = {
   updated_at: string;
   assigned_org: string | null;
   assigned_org_data?: { name: string } | null;
+  is_converted?: boolean;
 };
 
-const fetchPriorityDatasets = async () => {
+const fetchPriorityDatasets = async (): Promise<PriorityDataset[]> => {
   const { data, error } = await supabase
     .from("priority_datasets")
     .select(`
       *, 
       assigned_org_data:org_organizations!assigned_org(name)
-    `);
+    `)
+    .order("code", { ascending: true });
 
   if (error) {
     throw new Error(error.message);
   }
-  return data;
+
+  // Check which datasets have been converted
+  if (data) {
+    const priorityIds = data.map((d) => d.id);
+    const { data: convertedData } = await supabase
+      .from("catalog_metadata")
+      .select("priority_dataset_id")
+      .in("priority_dataset_id", priorityIds)
+      .not("priority_dataset_id", "is", null);
+
+    const convertedSet = new Set(convertedData?.map((c) => c.priority_dataset_id) || []);
+    
+    return data.map((dataset) => ({
+      ...dataset,
+      is_converted: convertedSet.has(dataset.id),
+    })) as PriorityDataset[];
+  }
+
+  return [];
 };
 
 export function PriorityDataTable() {
@@ -154,14 +174,20 @@ export function PriorityDataTable() {
                   </Button>
                 )}
                 {(dataset.status === 'assigned' || dataset.status === 'claimed') && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => convertMutation.mutate(dataset)}
-                    disabled={convertMutation.isPending}
-                  >
-                    {convertMutation.isPending ? "Converting..." : "Convert to Dataset"}
-                  </Button>
+                  dataset.is_converted ? (
+                    <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400">
+                      Converted
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => convertMutation.mutate(dataset)}
+                      disabled={convertMutation.isPending}
+                    >
+                      {convertMutation.isPending ? "Converting..." : "Convert to Dataset"}
+                    </Button>
+                  )
                 )}
               </TableCell>
             </TableRow>

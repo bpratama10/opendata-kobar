@@ -151,7 +151,17 @@ export default function Admin() {
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <Shield className="w-4 h-4 text-primary" />
-                  <span className="text-sm text-muted-foreground">Administrator</span>
+                  {orgRoles.length > 0 ? (
+                    <div className="flex items-center gap-1">
+                      {orgRoles.map((role, index) => (
+                        <Badge key={`${role.code}-${index}`} variant="secondary" className="text-xs">
+                          {role.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No Role</span>
+                  )}
                 </div>
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
                   <LogOut className="w-4 h-4 mr-2" />

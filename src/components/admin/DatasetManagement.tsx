@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Edit, Eye, Database } from "lucide-react";
+import { Search, Plus, Edit, Eye, Database, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DatasetPreviewDialog } from "./DatasetPreviewDialog";
 import { PriorityClaimList } from "@/components/producer/PriorityClaimList";
@@ -294,9 +294,8 @@ export function DatasetManagement() {
                     <TableRow key={dataset.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium flex items-center">
+                          <div className="font-medium">
                             {dataset.title}
-                            {dataset.is_priority && <Badge variant="destructive" className="ml-2">Priority Data</Badge>}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {dataset.abstract?.substring(0, 100)}...
@@ -304,7 +303,15 @@ export function DatasetManagement() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{dataset.classification_code}</Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline">{dataset.classification_code}</Badge>
+                          {dataset.is_priority && (
+                            <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
+                              <Star className="w-3 h-3 mr-1" />
+                              Priority Data
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">

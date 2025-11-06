@@ -12,6 +12,9 @@ export interface RolePermissions {
   canViewAudit: boolean;
   canManageSystemSettings: boolean;
   isReadOnly: boolean;
+  canManagePriorityData: boolean;
+  canViewPriorityData: boolean;
+  isWalidataReadOnly: boolean;
 }
 
 export const useRoleAccess = () => {
@@ -68,7 +71,16 @@ export const useRoleAccess = () => {
     canManageSystemSettings: isAdmin,
     
     // Read-only mode: KOORDINATOR is read-only
-    isReadOnly: isKoordinator
+    isReadOnly: isKoordinator,
+    
+    // Priority data management: ADMIN and KOORDINATOR can manage
+    canManagePriorityData: isAdmin || isKoordinator,
+    
+    // Priority data viewing: ADMIN, KOORDINATOR, WALIDATA can view
+    canViewPriorityData: isAdmin || isKoordinator || isWalidata,
+    
+    // WALIDATA is read-only for priority data
+    isWalidataReadOnly: isWalidata && !isAdmin && !isKoordinator
   };
 
   return {

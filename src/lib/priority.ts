@@ -26,7 +26,7 @@ export type PriorityDataset = {
 export type PriorityDatasetLog = {
   id: number;
   priority_dataset_id: string;
-  action: 'assign' | 'claim' | 'update' | 'unassign' | 'converted';
+  action: 'assign' | 'claim' | 'update' | 'unassign' | 'converted' | 'reset';
   actor_id: string;
   org_id?: string;
   timestamp: string;

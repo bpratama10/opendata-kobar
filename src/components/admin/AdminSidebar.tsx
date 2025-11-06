@@ -102,11 +102,14 @@ export function AdminSidebar() {
     }).map(section => ({
       ...section,
       items: section.items.filter(item => {
+        // Priority Data only for ADMIN, KOORDINATOR, WALIDATA
+        if (item.url === '/admin/priority-data') {
+          return permissions.canViewPriorityData;
+        }
         // PRODUSEN cannot see Organizations
         if (isProdusen && item.url.includes('/organizations')) {
           return false;
         }
-        // Additional filtering can be added here
         return true;
       })
     }));

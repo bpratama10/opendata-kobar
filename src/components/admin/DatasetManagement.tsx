@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Plus, Edit, Eye, Database, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DatasetPreviewDialog } from "./DatasetPreviewDialog";
-import { PriorityClaimList } from "@/components/producer/PriorityClaimList";
 import { UnpublishRequestDialog } from "./UnpublishRequestDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -256,140 +255,117 @@ export function DatasetManagement() {
         </Button>
       </div>
 
-      <Tabs defaultValue="my-datasets">
-        <TabsList>
-          <TabsTrigger value="my-datasets">My Datasets</TabsTrigger>
-          {isProdusen && <TabsTrigger value="priority-data">Priority Data</TabsTrigger>}
-        </TabsList>
-        <TabsContent value="my-datasets">
-          <Card>
-            <CardHeader>
-              <CardTitle>Datasets ({datasets.length})</CardTitle>
-              <CardDescription>
-                <div className="flex items-center space-x-2">
-                  <Search className="w-4 h-4" />
-                  <Input
-                    placeholder="Search datasets..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-sm"
-                  />
-                </div>
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Classification</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Language</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDatasets.map((dataset) => (
-                    <TableRow key={dataset.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">
-                            {dataset.title}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {dataset.abstract?.substring(0, 100)}...
-                          </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Datasets ({datasets.length})</CardTitle>
+          <CardDescription>
+            <div className="flex items-center space-x-2">
+              <Search className="w-4 h-4" />
+              <Input
+                placeholder="Search datasets..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm"
+              />
+            </div>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Classification</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Language</TableHead>
+                <TableHead>Updated</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredDatasets.map((dataset) => (
+                <TableRow key={dataset.id}>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium">
+                        {dataset.title}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {dataset.abstract?.substring(0, 100)}...
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant="outline">{dataset.classification_code}</Badge>
+                      {dataset.is_priority && (
+                        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
+                          Prioritas
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        {dataset.unpublish_request_reason && dataset.publication_status === 'PUBLISHED' ? (
+                          <Badge variant="outline" className="border-yellow-500 text-yellow-700 dark:text-yellow-500">
+                            UNPUBLISH REVIEW
+                          </Badge>
+                        ) : (
+                          <Badge variant={getStatusBadgeVariant(dataset.publication_status)}>
+                            {dataset.publication_status.replace('_', ' ')}
+                          </Badge>
+                        )}
+                        {getStatusActions(dataset)}
+                      </div>
+                      {dataset.unpublish_request_reason && permissions.canPublishDatasets && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <span className="font-semibold">Reason:</span> {dataset.unpublish_request_reason}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge variant="outline">{dataset.classification_code}</Badge>
-                          {dataset.is_priority && (
-                            <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
-                              Prioritas
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            {dataset.unpublish_request_reason && dataset.publication_status === 'PUBLISHED' ? (
-                              <Badge variant="outline" className="border-yellow-500 text-yellow-700 dark:text-yellow-500">
-                                UNPUBLISH REVIEW
-                              </Badge>
-                            ) : (
-                              <Badge variant={getStatusBadgeVariant(dataset.publication_status)}>
-                                {dataset.publication_status.replace('_', ' ')}
-                              </Badge>
-                            )}
-                            {getStatusActions(dataset)}
-                          </div>
-                          {dataset.unpublish_request_reason && permissions.canPublishDatasets && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              <span className="font-semibold">Reason:</span> {dataset.unpublish_request_reason}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{dataset.language?.toUpperCase()}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(dataset.updated_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handlePreview(dataset)}
-                            title="Preview dataset"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleEdit(dataset)}
-                            title="Edit dataset"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => navigate(`/admin/datasets/${dataset.id}/tables`)}
-                            title="Manage data tables"
-                          >
-                            <Database className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        {isProdusen && (
-          <TabsContent value="priority-data">
-            <Card>
-              <CardHeader>
-                <CardTitle>Claim Priority Datasets</CardTitle>
-                <CardDescription>
-                  Claim unassigned priority datasets for your organization.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PriorityClaimList />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-      </Tabs>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{dataset.language?.toUpperCase()}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(dataset.updated_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handlePreview(dataset)}
+                        title="Preview dataset"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleEdit(dataset)}
+                        title="Edit dataset"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => navigate(`/admin/datasets/${dataset.id}/tables`)}
+                        title="Manage data tables"
+                      >
+                        <Database className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       
       <DatasetPreviewDialog 
         open={previewOpen}

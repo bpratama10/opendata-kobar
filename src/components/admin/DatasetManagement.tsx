@@ -6,8 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Edit, Eye, Database, Star } from "lucide-react";
+import { Search, Plus, Edit, Eye, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DatasetPreviewDialog } from "./DatasetPreviewDialog";
 import { UnpublishRequestDialog } from "./UnpublishRequestDialog";

@@ -11,7 +11,7 @@ const fetchUserSession = async () => {
   if (!session) return null;
 
   const { data: profile, error: profileError } = await supabase
-    .from("profiles")
+    .from("org_users")
     .select("*")
     .eq("id", session.user.id)
     .maybeSingle();

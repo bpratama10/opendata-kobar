@@ -1,84 +1,128 @@
-# 🧭 Task: Standardize Indicator Dataset & Visualization Logic
+# 🧩 Task: Implement Central Priority Data Management Module
 
-## 🎯 Goal
-Ensure that the dataset structure and visualization logic in the Open Data Portal produce **meaningful charts** — especially for **time-based indicators** such as "Jumlah TTE Terbit".
-
----
-
-## ✅ Data Structure Tasks
-
-- [ ] **Adopt a standardized “long format” for indicator datasets**, with the following structure example, look into datasets/a61ed2cc-be05-4a35-ac6e-6f802ed8a2a7/tables for a refrence:
-  | indicator_id | indicator_name | year | value | unit | notes |
-  |---------------|----------------|------|--------|------|-------|
-  | 1 | Jumlah TTE Terbit | 2022 | 79 | Rekaman |  |
-  | 1 | Jumlah TTE Terbit | 2023 | 172 | Rekaman |  |
-  | 1 | Jumlah TTE Terbit | 2024 | 265 | Rekaman |  |
-
-- [ ] Each row must represent **total value for a given year** (not cumulative or partial values).
-- [ ] Use consistent **units**, **definitions**, and **aggregation methods** across years.
-- [ ] Add metadata fields in `catalog_metadata` or `catalog_resources`:
-  - [ ] `indicator_title`
-  - [ ] `unit`
-  - [ ] `frequency` (e.g., Tahunan, Triwulanan)
-  - [ ] `aggregation_method` (e.g., Total per tahun)
-  - [ ] `time_dimension` (e.g., year)
-  - [ ] `chart_type` (e.g., line, area, KPI)
-  - [ ] `interpretation` (optional description)
+## 🎯 Objective
+Introduce a new feature allowing admins and coordinators to **delegate** "priority datasets" (defined by central government) to specific ORGs, and allow producers to **claim** unassigned priority datasets.  
+These datasets integrate seamlessly into each organization’s dataset management page with a **“Priority Data” badge**.
 
 ---
 
-## 📊 Visualization Logic Tasks
+## 📁 Database Changes
 
-- [ ] Replace **bar chart** for single-indicator datasets with more meaningful visuals:
-  - [ ] **Line chart** → emphasize growth over time.
-  - [ ] **Area chart** → show cumulative progression.
-  - [ ] **Slope chart** → show start vs end comparison.
-  - [ ] **KPI summary card** → highlight latest value and YoY change.
+### 1. New Table: `priority_datasets`
+- **Purpose:** Store the list of centrally-defined priority datasets.
+- **Seed:** Manually inserted via SQL or bulk import.
 
-- [ ] Disable or hide **donut/distribution chart** if there’s only one indicator (not meaningful).
-- [ ] Use **conditional rendering logic**:
-  ```ts
-  if (indicatorCount === 1) {
-    renderLineChart(data);
-  } else {
-    renderMultiSeriesChart(data);
-  }
+| Field | Type | Description |
+|-------|------|--------------|
+| id | UUID / SERIAL | Primary key |
+| code | VARCHAR | Data code prefix, e.g. `6201.01` |
+| name | TEXT | Dataset name |
+| operational_definition | TEXT | Operational definition |
+| data_type | VARCHAR | e.g. Statistik Dasar, Tematik, Administratif |
+| proposing_agency | VARCHAR | Central or proposing institution |
+| producing_agency | VARCHAR | Institution expected to produce the data |
+| source_reference | TEXT | Source document or national reference |
+| data_depth_level | VARCHAR | e.g. Kabupaten/Kecamatan/Desa |
+| update_schedule | VARCHAR | e.g. Quarterly, Annual |
+| assigned_org | UUID (FK → org_organizations.id) | Nullable, ORG assigned or claimed |
+| status | ENUM(`unassigned`, `claimed`, `assigned`) | Tracks progress |
+| assigned_by | UUID (FK → users.id) | Admin or coordinator who delegated |
+| assigned_at | TIMESTAMP | When the dataset was assigned |
+| claimed_by | UUID (FK → users.id) | Producer who claimed the dataset |
+| claimed_at | TIMESTAMP | When dataset was claimed |
+| created_at | TIMESTAMP | Default now() |
+| updated_at | TIMESTAMP | Default now() |
+
+### 2. Existing Table Updates
+- `catalog_metadata`:  
+  - Add field `is_priority` (BOOLEAN, default: false)
+  - If dataset originated from `priority_datasets`, link via `priority_dataset_id`
+
+---
+
+## 🧠 Core Logic
+
+### 1. Assignment Workflow (Admin / Coordinator)
+- View the list of all **unassigned priority datasets**.
+- Assign one dataset to a specific ORG.
+- Once assigned:
+  - `assigned_org`, `assigned_by`, and `assigned_at` are recorded.
+  - `status` updates to `assigned`.
+  - A corresponding entry is **created or linked** in `catalog_metadata` with `is_priority = true`.
+
+### 2. Claim Workflow (Producer)
+- Producers can view **unclaimed datasets** in a “Priority Data” tab.
+- They can **claim** a dataset if:
+  - It has no existing `assigned_org`.
+  - Their ORG is eligible (logic to be defined if needed).
+- After claim:
+  - `status` → `claimed`
+  - `assigned_org` → producer’s org
+  - `claimed_by` and `claimed_at` are recorded.
+  - The dataset appears in their Data Management view with `is_priority = true`.
+
+---
+
+## 🔐 Role-Based Permissions
+
+| Role | Permissions |
+|------|--------------|
+| **Admin** | Full access: create/edit/delete priority datasets, assign to ORG |
+| **Coordinator** | Same as Admin but read-only on central schema config |
+| **Walidata** | View all datasets, read-only for assignments |
+| **Producer** | View unassigned datasets, claim if available |
+
+---
+
+## 🖥️ UI / UX Requirements
+
+### 1. Admin / Coordinator View
+- Menu item: **Priority Data (Central)**
+- Table columns:
+  - Code, Name, Data Type, Assigned ORG, Status, Last Updated
+- Actions:
+  - “Assign to ORG” button (dropdown list of org_organizations)
+  - “Edit Metadata” (optional)
+  - “View Claim Logs”
+
+### 2. Producer View
+- Tab in Dataset Management: **Priority Data**
+- List unassigned datasets available for claim.
+- Button: **Claim Dataset**
+- Once claimed, the dataset appears in their regular “My Datasets” view with a **badge**:
+  - Example badge: `<Badge variant="destructive">Priority Data</Badge>`
+
+### 3. Shared Components
+- Badge system in dataset list / detail view:
+  ```tsx
+  {is_priority && <Badge variant="destructive">Priority Data</Badge>}
+
+### 🧾 Logging & Audit Trail 
+Table: priority_dataset_logs
+
+| Field               | Type                                          | Description              |
+| ------------------- | --------------------------------------------- | ------------------------ |
+| id                  | SERIAL                                        | Primary key              |
+| priority_dataset_id | FK                                            | Reference to dataset     |
+| action              | ENUM(`assign`, `claim`, `update`, `unassign`) |                          |
+| actor_id            | FK → users.id                                 | Who did the action       |
+| org_id              | FK → org_organizations.id                     | Related ORG              |
+| timestamp           | TIMESTAMP                                     | When action occurred     |
+| notes               | TEXT                                          | Optional notes or reason |
 
 
-🧩 Schema Integration Tasks
+🧩 Suggested File / Folder Locations
+/src/
+ ├─ components/
+ │   ├─ admin/PriorityDataTable.tsx
+ │   └─ producer/PriorityClaimList.tsx
+ ├─ pages/
+ │   ├─ admin/priority-data.tsx
+ │   └─ producer/priority-data.tsx
+ ├─ lib/
+ │   ├─ priority.ts (CRUD functions)
+ │   └─ logger.ts
+ ├─ db/
+ │   └─ migrations/priority_datasets.sql
 
-  - [ ] Standardize how catalog_metadata references yearly indicator datasets.
-
-  - [ ] Add logic in data ingestion to normalize wide → long format.
-
-  - [ ] Tag datasets with "is_timeseries": true to trigger trend charts automatically.
-
-  - [ ] Validate data consistency before visualization:
-
-  - [ ] Check for missing years.
-
-  - [ ] Check for mixed cumulative/annual totals.
-
-🧠 Optional Enhancements
-
-  - [ ] Add a metadata-based visualization switcher:
-
- -If chart_type = "line", render line chart.
-
- -If chart_type = "kpi", render summary card.
-
- -If multiple indicators, render grouped bar or multi-line.
-
-  - [ ] Add small sparkline mini-charts in dataset cards to preview 3-year trend.
-
-  - [ ] Implement a growth badge (+54%, -10%) next to latest value.
-
-🧾 Expected Output
-
- - A consistent system where:
-
- - Every yearly dataset has comparable totals.
-
- - Visualization auto-selects the most meaningful chart type.
-
- - Users understand not just numbers, but trends and growth.
+ Note: Keep is_priority datasets unified under the same management flow as normal datasets for better UX — the badge is enough differentiation.

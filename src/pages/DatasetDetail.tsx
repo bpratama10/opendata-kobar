@@ -351,6 +351,11 @@ const DatasetDetail = () => {
           <div className="flex flex-col lg:flex-row lg:items-start gap-6">
             <div className="flex-1">
               <div className="flex items-start gap-3 mb-4">
+                {dataset.is_priority && (
+                  <Badge variant="destructive" className="text-sm">
+                    Priority Data
+                  </Badge>
+                )}
                 <Badge variant="secondary" className="text-sm">
                   {dataset.category}
                 </Badge>

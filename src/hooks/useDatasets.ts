@@ -21,6 +21,8 @@ export interface Dataset {
   contact_email?: string;
   language?: string;
   maintainers?: string[];
+  is_priority?: boolean;
+  priorityDatasetId?: string | null;
   primaryResource?: {
     id: string;
     name: string;
@@ -56,11 +58,12 @@ export const useDatasets = () => {
     try {
       setLoading(true);
 
-      // Fetch published datasets with their tags, themes, and distributions
+      // Fetch published datasets with their tags, themes, distributions, and is_priority status
       const { data: metadataData, error: metadataError } = await supabase
         .from('catalog_metadata')
         .select(`
           *,
+          is_priority,
           catalog_dataset_tags (
             catalog_tags (
               name
@@ -157,29 +160,35 @@ export const useDatasets = () => {
         // Use first theme as category, or "Uncategorized" if no themes
         const category = themes.length > 0 ? themes[0] : 'Uncategorized';
 
+        const priorityDatasetId = dataset.priority_dataset_id ?? null;
+
         return {
           id: dataset.id,
           slug: dataset.slug,
           title: dataset.title,
-          description: dataset.abstract || dataset.description || '',
+          description: dataset.abstract || dataset.description || "",
           abstract: dataset.abstract,
           tags,
           themes,
           downloadCount: Number(downloadCount),
-          viewCount: Number(viewCount), // Add view count for sorting
+          viewCount: Number(viewCount),
           lastUpdated: new Date(dataset.updated_at).toLocaleDateString(),
-          size: mainDistribution?.byte_size ? `${(mainDistribution.byte_size / 1024 / 1024).toFixed(1)} MB` : "Unknown",
+          size: mainDistribution?.byte_size
+            ? `${(mainDistribution.byte_size / 1024 / 1024).toFixed(1)} MB`
+            : "Unknown",
           format: mainDistribution?.media_type || "Various",
           category,
-          source: dataset.contact_email || 'Unknown',
-          classification_code: dataset.classification_code || 'PUBLIC',
+          source: dataset.contact_email || "Unknown",
+          classification_code: dataset.classification_code || "PUBLIC",
           publication_status: dataset.publication_status,
           contact_email: dataset.contact_email,
           language: dataset.language,
           maintainers: Array.isArray(dataset.maintainers)
-            ? dataset.maintainers.filter((m): m is string => typeof m === 'string')
+            ? dataset.maintainers.filter((m): m is string => typeof m === "string")
             : [],
-          primaryResource
+          is_priority: dataset.is_priority ?? false,
+          priorityDatasetId,
+          primaryResource,
         };
       });
 

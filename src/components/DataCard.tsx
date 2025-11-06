@@ -20,6 +20,7 @@ export interface Dataset {
   publication_status?: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED';
   contact_email?: string;
   language?: string;
+  is_priority?: boolean; // Add is_priority field
 }
 
 interface DataCardProps {
@@ -40,9 +41,12 @@ export const DataCard = ({ dataset, onView }: DataCardProps) => {
               {dataset.source}
             </CardDescription>
           </div>
-          <Badge variant="secondary" className="shrink-0 text-xs">
-            {dataset.category}
-          </Badge>
+          <div className="flex flex-col items-end gap-1">
+            {dataset.is_priority && <Badge variant="destructive" className="shrink-0 text-xs">Priority Data</Badge>}
+            <Badge variant="secondary" className="shrink-0 text-xs">
+              {dataset.category}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
 

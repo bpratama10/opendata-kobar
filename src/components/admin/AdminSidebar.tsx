@@ -39,6 +39,7 @@ const menuItems = [
     label: "Data Management",
     items: [
       { title: "Datasets", url: "/admin/datasets", icon: Database },
+      { title: "Priority Data", url: "/admin/priority-data", icon: Shield },
       { title: "Resources", url: "/admin/resources", icon: FileText },
       { title: "Distributions", url: "/admin/distributions", icon: Download },
     ]

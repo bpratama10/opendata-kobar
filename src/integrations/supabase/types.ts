@@ -179,6 +179,7 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           id: string
+          is_priority: boolean | null
           is_published: boolean | null
           keywords: Json | null
           language: string | null
@@ -186,6 +187,7 @@ export type Database = {
           license_code: string | null
           maintainers: Json | null
           org_id: string | null
+          priority_dataset_id: string | null
           publication_status:
             | Database["public"]["Enums"]["publication_status"]
             | null
@@ -212,6 +214,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          is_priority?: boolean | null
           is_published?: boolean | null
           keywords?: Json | null
           language?: string | null
@@ -219,6 +222,7 @@ export type Database = {
           license_code?: string | null
           maintainers?: Json | null
           org_id?: string | null
+          priority_dataset_id?: string | null
           publication_status?:
             | Database["public"]["Enums"]["publication_status"]
             | null
@@ -245,6 +249,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          is_priority?: boolean | null
           is_published?: boolean | null
           keywords?: Json | null
           language?: string | null
@@ -252,6 +257,7 @@ export type Database = {
           license_code?: string | null
           maintainers?: Json | null
           org_id?: string | null
+          priority_dataset_id?: string | null
           publication_status?:
             | Database["public"]["Enums"]["publication_status"]
             | null
@@ -267,6 +273,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "catalog_metadata_priority_dataset_id_fkey"
+            columns: ["priority_dataset_id"]
+            isOneToOne: false
+            referencedRelation: "priority_datasets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fk_catalog_metadata_created_by"
             columns: ["created_by"]
@@ -795,6 +808,122 @@ export type Database = {
           },
         ]
       }
+      priority_dataset_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["priority_action"]
+          actor_id: string | null
+          id: number
+          notes: string | null
+          org_id: string | null
+          priority_dataset_id: string | null
+          timestamp: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["priority_action"]
+          actor_id?: string | null
+          id?: number
+          notes?: string | null
+          org_id?: string | null
+          priority_dataset_id?: string | null
+          timestamp?: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["priority_action"]
+          actor_id?: string | null
+          id?: number
+          notes?: string | null
+          org_id?: string | null
+          priority_dataset_id?: string | null
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "priority_dataset_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "priority_dataset_logs_priority_dataset_id_fkey"
+            columns: ["priority_dataset_id"]
+            isOneToOne: false
+            referencedRelation: "priority_datasets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      priority_datasets: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          assigned_org: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          code: string
+          created_at: string
+          data_depth_level: string | null
+          data_type: string | null
+          id: string
+          name: string
+          operational_definition: string | null
+          producing_agency: string | null
+          proposing_agency: string | null
+          source_reference: string | null
+          status: Database["public"]["Enums"]["dataset_status"]
+          update_schedule: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_org?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          code: string
+          created_at?: string
+          data_depth_level?: string | null
+          data_type?: string | null
+          id?: string
+          name: string
+          operational_definition?: string | null
+          producing_agency?: string | null
+          proposing_agency?: string | null
+          source_reference?: string | null
+          status?: Database["public"]["Enums"]["dataset_status"]
+          update_schedule?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_org?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          code?: string
+          created_at?: string
+          data_depth_level?: string | null
+          data_type?: string | null
+          id?: string
+          name?: string
+          operational_definition?: string | null
+          producing_agency?: string | null
+          proposing_agency?: string | null
+          source_reference?: string | null
+          status?: Database["public"]["Enums"]["dataset_status"]
+          update_schedule?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "priority_datasets_assigned_org_fkey"
+            columns: ["assigned_org"]
+            isOneToOne: false
+            referencedRelation: "org_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1012,10 +1141,12 @@ export type Database = {
     Enums: {
       availability_type: "online" | "offline" | "archived"
       classification_type: "PUBLIC" | "TERBATAS"
+      dataset_status: "unassigned" | "claimed" | "assigned"
       download_channel: "WEB" | "API" | "DIRECT"
       org_type: "WALIDATA" | "PRODUSEN_DATA" | "KOORDINATOR" | "LAINNYA"
       policy_rule: "VIEW" | "DOWNLOAD" | "UPDATE" | "ADMIN"
       policy_subject_type: "USER" | "ROLE" | "ORG"
+      priority_action: "assign" | "claim" | "update" | "unassign"
       publication_status: "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "REJECTED"
       qualifier_type: "NA" | "OFFICIAL" | "PRELIM" | "EST"
       resource_type: "TABLE" | "FILE" | "API" | "LINK"
@@ -1150,10 +1281,12 @@ export const Constants = {
     Enums: {
       availability_type: ["online", "offline", "archived"],
       classification_type: ["PUBLIC", "TERBATAS"],
+      dataset_status: ["unassigned", "claimed", "assigned"],
       download_channel: ["WEB", "API", "DIRECT"],
       org_type: ["WALIDATA", "PRODUSEN_DATA", "KOORDINATOR", "LAINNYA"],
       policy_rule: ["VIEW", "DOWNLOAD", "UPDATE", "ADMIN"],
       policy_subject_type: ["USER", "ROLE", "ORG"],
+      priority_action: ["assign", "claim", "update", "unassign"],
       publication_status: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "REJECTED"],
       qualifier_type: ["NA", "OFFICIAL", "PRELIM", "EST"],
       resource_type: ["TABLE", "FILE", "API", "LINK"],

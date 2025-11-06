@@ -151,7 +151,9 @@ export const useDatasetDetail = (slug: string) => {
         publication_status: data.publication_status,
         contact_email: data.contact_email,
         language: data.language,
-        maintainers: maintainers
+        maintainers,
+        is_priority: data.is_priority ?? false,
+        priorityDatasetId: data.priority_dataset_id ?? null,
       };
 
       setDataset(transformedDataset);

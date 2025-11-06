@@ -24,6 +24,7 @@ import AdminFrequency from "./pages/admin/AdminFrequency";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminAudit from "./pages/admin/AdminAudit";
 import AdminDataTables from "./pages/admin/AdminDataTables";
+import PriorityData from "./pages/admin/PriorityData";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => (
           <Route path="/admin/frequency" element={<AdminFrequency />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/audit" element={<AdminAudit />} />
+          <Route path="/admin/priority-data" element={<PriorityData />} />
           <Route path="/dataset/:slug" element={<DatasetDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       catalog_data_classifications: {
         Row: {
           code: string
@@ -194,6 +227,7 @@ export type Database = {
           publisher_org_id: string | null
           slug: string
           source_name: string | null
+          sync_lock: boolean | null
           temporal_end: string | null
           temporal_start: string | null
           title: string
@@ -229,6 +263,7 @@ export type Database = {
           publisher_org_id?: string | null
           slug: string
           source_name?: string | null
+          sync_lock?: boolean | null
           temporal_end?: string | null
           temporal_start?: string | null
           title: string
@@ -264,6 +299,7 @@ export type Database = {
           publisher_org_id?: string | null
           slug?: string
           source_name?: string | null
+          sync_lock?: boolean | null
           temporal_end?: string | null
           temporal_start?: string | null
           title?: string
@@ -1110,6 +1146,14 @@ export type Database = {
         Args: { _target_role_code: string }
         Returns: boolean
       }
+      fn_convert_priority_to_dataset: {
+        Args: {
+          p_assignee_org_id: string
+          p_priority_dataset_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       get_dataset_download_count: {
         Args: { dataset_id_param: string }
         Returns: number
@@ -1137,6 +1181,8 @@ export type Database = {
       has_admin_or_walidata_role: { Args: never; Returns: boolean }
       has_role: { Args: { _role_code: string }; Returns: boolean }
       is_admin: { Args: { _user_id?: string }; Returns: boolean }
+      slugify: { Args: { v_text: string }; Returns: string }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       availability_type: "online" | "offline" | "archived"

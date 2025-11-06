@@ -222,83 +222,31 @@ export function UserManagement() {
         return;
       }
 
-      // Step 2: Invite user via Supabase Auth (Admin-Create Flow)
-      const redirectUrl = `${window.location.origin}/auth`;
-      
-      const { data: authUser, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
-        newUserEmail.trim(),
+      // Step 2: Invite user via edge function
+      const { data: inviteData, error: inviteError } = await supabase.functions.invoke(
+        'invite-user',
         {
-          data: { 
-            full_name: newUserFullName.trim() 
+          body: {
+            email: newUserEmail.trim(),
+            fullName: newUserFullName.trim(),
+            organizationId: selectedOrgId !== 'new' ? selectedOrgId : undefined,
+            organizationName: selectedOrgId === 'new' ? newUserOrgName : undefined,
+            roleId: selectedRoleId,
           },
-          redirectTo: redirectUrl
         }
       );
 
-      if (inviteError) {
-        console.error('User invite error:', inviteError);
+      if (inviteError || !inviteData?.success) {
+        console.error("Error inviting user:", inviteError);
         toast({
           title: "Error",
-          description: `Failed to invite user: ${inviteError.message}`,
+          description: inviteError?.message || inviteData?.error || "Failed to invite user",
           variant: "destructive",
         });
         return;
       }
 
-      if (!authUser.user) {
-        toast({
-          title: "Error", 
-          description: "Failed to create user account",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Step 3: Create/Update org_users record with the auth user ID
-      const { data: newUser, error: userError } = await supabase
-        .from('org_users')
-        .upsert({
-          id: authUser.user.id, // Use the auth user ID
-          email: newUserEmail.trim(),
-          full_name: newUserFullName.trim(),
-          org_id: orgId,
-          is_active: true
-        })
-        .select()
-        .single();
-
-      if (userError) {
-        console.error('User creation error:', userError);
-        toast({
-          title: "Error",
-          description: `Failed to create user record: ${userError.message}`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Step 4: Assign role to user (remove existing roles first)
-      await supabase
-        .from('org_user_roles')
-        .delete()
-        .eq('user_id', authUser.user.id);
-
-      const { error: roleError } = await supabase
-        .from('org_user_roles')
-        .insert({
-          user_id: authUser.user.id,
-          role_id: selectedRoleId
-        });
-
-      if (roleError) {
-        console.error('Role assignment error:', roleError);
-        toast({
-          title: "Error",
-          description: `Failed to assign role: ${roleError.message}`,
-          variant: "destructive",
-        });
-        return;
-      }
+      // All user setup is now handled in the edge function
 
       toast({
         title: "Success",

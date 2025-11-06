@@ -66,6 +66,7 @@ const menuItems = [
     label: "System",
     items: [
       { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
+      { title: "API Keys", url: "/admin/api-keys", icon: Settings },
       { title: "Audit Log", url: "/admin/audit", icon: Settings },
     ]
   }

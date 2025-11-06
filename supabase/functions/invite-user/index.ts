@@ -86,20 +86,26 @@ Deno.serve(async (req) => {
 
     const newUserId = inviteData.user.id;
 
-    // Create org_users record
+    // Update org_users record (already created by handle_new_user trigger)
     const { error: orgUserError } = await adminClient
       .from('org_users')
-      .insert({
-        id: newUserId,
+      .update({
         email,
         full_name: fullName,
         org_id: finalOrgId,
         is_active: true,
-      });
+      })
+      .eq('id', newUserId);
 
     if (orgUserError) throw orgUserError;
 
-    // Assign role
+    // Remove existing roles (trigger creates default VIEWER role)
+    await adminClient
+      .from('org_user_roles')
+      .delete()
+      .eq('user_id', newUserId);
+
+    // Assign the selected role
     const { error: roleError } = await adminClient
       .from('org_user_roles')
       .insert({

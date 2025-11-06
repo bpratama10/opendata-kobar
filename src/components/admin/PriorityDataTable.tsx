@@ -33,13 +33,17 @@ type PriorityDataset = {
   update_schedule: string;
   status: string;
   updated_at: string;
-  assigned_org: { name: string } | null;
+  assigned_org: string | null;
+  assigned_org_data?: { name: string } | null;
 };
 
 const fetchPriorityDatasets = async () => {
   const { data, error } = await supabase
     .from("priority_datasets")
-    .select("*, assigned_org(name)");
+    .select(`
+      *, 
+      assigned_org_data:org_organizations!assigned_org(name)
+    `);
 
   if (error) {
     throw new Error(error.message);
@@ -48,12 +52,47 @@ const fetchPriorityDatasets = async () => {
 };
 
 export function PriorityDataTable() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
   const { data: datasets, isLoading, error } = useQuery({
     queryKey: ["priority-datasets"],
     queryFn: fetchPriorityDatasets,
   });
   const [selectedDataset, setSelectedDataset] = useState<PriorityDataset | null>(null);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+
+  const convertMutation = useMutation({
+    mutationFn: async (dataset: PriorityDataset) => {
+      if (!dataset.assigned_org) {
+        throw new Error("Dataset must be assigned to an organization first");
+      }
+
+      const { data, error } = await supabase.rpc("fn_convert_priority_to_dataset", {
+        p_priority_dataset_id: dataset.id,
+        p_assignee_org_id: dataset.assigned_org,
+        p_user_id: user?.id,
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Priority dataset converted to catalog dataset successfully!",
+      });
+      queryClient.invalidateQueries({ queryKey: ["priority-datasets"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
@@ -100,7 +139,7 @@ export function PriorityDataTable() {
               <TableCell>{dataset.producing_agency}</TableCell>
               <TableCell>{dataset.source_reference}</TableCell>
               <TableCell>{dataset.update_schedule}</TableCell>
-              <TableCell>{dataset.assigned_org?.name || "N/A"}</TableCell>
+              <TableCell>{dataset.assigned_org_data?.name || "N/A"}</TableCell>
               <TableCell>
                 <Badge>{dataset.status}</Badge>
               </TableCell>
@@ -112,6 +151,16 @@ export function PriorityDataTable() {
                     setIsAssignDialogOpen(true);
                   }}>
                     Assign to ORG
+                  </Button>
+                )}
+                {(dataset.status === 'assigned' || dataset.status === 'claimed') && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => convertMutation.mutate(dataset)}
+                    disabled={convertMutation.isPending}
+                  >
+                    {convertMutation.isPending ? "Converting..." : "Convert to Dataset"}
                   </Button>
                 )}
               </TableCell>

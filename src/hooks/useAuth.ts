@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useInactivityTimeout } from "./useInactivityTimeout";
 
 const fetchUserSession = async () => {
   const {
@@ -68,6 +69,9 @@ export const useAuth = () => {
   const isAdmin = hasAnyRole(["ADMIN", "WALIDATA"]);
   const isViewer = hasAnyRole(["VIEWER"]) && !canAccessAdmin;
   const isAuthenticated = !!authData?.user;
+
+  // Enable inactivity timeout
+  useInactivityTimeout(isAuthenticated);
 
   // Debug logging for access decisions
   if (rolesReady && authData?.user) {

@@ -1,5 +1,7 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   Database,
   Users,
@@ -12,21 +14,13 @@ import {
   Globe,
   Download,
   Clock,
-  Scale
+  Scale,
+  ChevronLeft,
+  Home,
 } from "lucide-react";
-
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import logo from "@/assets/lambang_opt.png";
 
 const menuItems = [
   {
@@ -73,25 +67,18 @@ const menuItems = [
 ];
 
 export function AdminSidebar() {
-  const { state } = useSidebar();
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [isCollapsed, setIsCollapsed] = useState(!isDesktop);
   const location = useLocation();
-  const currentPath = location.pathname;
+  const navigate = useNavigate();
   const { permissions, isProdusen } = useRoleAccess();
 
-  const isActive = (path: string) => {
-    if (path === "/admin") {
-      return currentPath === "/admin";
-    }
-    return currentPath.startsWith(path);
-  };
+  useEffect(() => {
+    setIsCollapsed(!isDesktop);
+  }, [isDesktop]);
 
-  const getNavCls = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center w-full ${isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50"}`;
-
-  // Filter menu items based on role permissions
   const getFilteredSections = () => {
     return menuItems.filter(section => {
-      // Filter sections based on role
       if (section.label === "Organization" && !permissions.canViewOrganizations) {
         return false;
       }
@@ -102,11 +89,9 @@ export function AdminSidebar() {
     }).map(section => ({
       ...section,
       items: section.items.filter(item => {
-        // Priority Data only for ADMIN, KOORDINATOR, WALIDATA
         if (item.url === '/admin/priority-data') {
           return permissions.canViewPriorityData;
         }
-        // PRODUSEN cannot see Organizations
         if (isProdusen && item.url.includes('/organizations')) {
           return false;
         }
@@ -116,30 +101,83 @@ export function AdminSidebar() {
   };
 
   return (
-    <Sidebar className={state === "collapsed" ? "w-14" : "w-64"} collapsible="icon">
-      <SidebarTrigger className="m-2 self-end" />
-      
-      <SidebarContent>
-        {getFilteredSections().map((section) => (
-          <SidebarGroup key={section.label}>
-            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {section.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.url} className={getNavCls}>
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {state !== "collapsed" && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+    <div
+      className={cn(
+        "relative h-full border-r bg-background transition-all duration-200",
+        isCollapsed ? "w-16" : "w-64"
+      )}
+    >
+      {/* Header with Logo */}
+      <div className={cn(
+        "flex items-center border-b p-4",
+        isCollapsed ? "justify-center" : "justify-start"
+      )}>
+        <img
+          src={logo}
+          alt="Logo"
+          className={cn(
+            "object-contain",
+            isCollapsed ? "h-8 w-8" : "h-10 w-10 mr-3"
+          )}
+        />
+        {!isCollapsed && (
+          <div>
+            <h1 className="text-lg font-bold">Admin Dashboard</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/')}
+              className="text-xs text-muted-foreground hover:text-foreground p-0 h-auto"
+            >
+              <Home className="h-3 w-3 mr-1" />
+              Halaman Depan
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute top-4 right-[-15px] rounded-full bg-background hover:bg-muted z-10"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
+        <ChevronLeft className={cn("h-4 w-4 transition-transform", isCollapsed && "rotate-180")} />
+      </Button>
+
+      <div className="flex flex-col space-y-4 p-2">
+        {getFilteredSections().map((section, index) => (
+          <div key={section.label}>
+            {!isCollapsed && (
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1 mb-1">
+                {section.label}
+              </h4>
+            )}
+            {isCollapsed && index > 0 && <div className="my-3 border-t"></div>}
+            <div className="flex flex-col space-y-1">
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.title}
+                  to={item.url}
+                  title={isCollapsed ? item.title : undefined}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center p-2 rounded-lg text-sm font-medium",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      isCollapsed && "justify-center"
+                    )
+                  }
+                >
+                  <item.icon className={cn("h-5 w-5", !isCollapsed && "mr-3")} />
+                  {!isCollapsed && <span>{item.title}</span>}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
-      </SidebarContent>
-    </Sidebar>
+      </div>
+    </div>
   );
 }

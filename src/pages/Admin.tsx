@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -59,7 +59,7 @@ export default function Admin() {
   });
   const [statsLoading, setStatsLoading] = useState(true);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       // Use org roles instead of profile.role (removed for security)
       const isGlobalAdmin = orgRoles.some((role) => role.code === 'ADMIN');
@@ -112,7 +112,7 @@ export default function Admin() {
     } finally {
       setStatsLoading(false);
     }
-  };
+  }, [orgRoles]);
 
   useEffect(() => {
     if (!loading && (!isAuthenticated || !canAccessAdmin)) {
@@ -124,7 +124,7 @@ export default function Admin() {
     if (isAuthenticated && canAccessAdmin) {
       fetchStats();
     }
-  }, [isAuthenticated, canAccessAdmin]);
+  }, [isAuthenticated, canAccessAdmin, fetchStats]);
 
   if (loading) {
     return (
@@ -166,7 +166,7 @@ export default function Admin() {
                   </div>
                   <Button variant="outline" size="sm" onClick={handleSignOut}>
                     <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
+                    Keluar
                   </Button>
                 </div>
               </div>
@@ -175,9 +175,9 @@ export default function Admin() {
             <main className="flex-1 p-6">
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-bold mb-2">Dashboard Overview</h2>
+                  <h2 className="text-2xl font-bold mb-2">Ringkasan</h2>
                   <p className="text-muted-foreground">
-                    Welcome to the data catalog administration panel
+                    Selamat datang di panel administrasi katalog open data
                   </p>
                 </div>
 
@@ -235,7 +235,7 @@ export default function Admin() {
 
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Organizations</CardTitle>
+                      <CardTitle className="text-sm font-medium">Organisasi</CardTitle>
                       <Building className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -243,7 +243,7 @@ export default function Admin() {
                         {statsLoading ? "..." : stats.organizations.toLocaleString()}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Registered organizations
+                        Organisasi terdaftar di sistem
                       </p>
                     </CardContent>
                   </Card>

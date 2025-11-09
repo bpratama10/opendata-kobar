@@ -103,7 +103,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         <footer className="border-t bg-background px-6 py-4">
           <div className="flex flex-col md:flex-row justify-between items-center text-sm text-muted-foreground">
             <div className="mb-2 md:mb-0">
-              © 2025 Dinas Komunikasi Informatika, Statisitk dan Persandian. All rights reserved.
+              © {new Date().getFullYear()} Dinas Komunikasi Informatika, Statistik dan Persandian. All rights reserved.
             </div>
             <div className="flex flex-col md:flex-row items-center space-y-1 md:space-y-0 md:space-x-4">
               <div className="flex items-center space-x-4">
@@ -111,7 +111,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 <span>✉️ satudata@kotawaringinbaratkab.go.id</span>
               </div>
               <div className="text-center md:text-right">
-                Built with ❤️ by Bidang Statistik
+                Built with ❤️ by Aplikasi Informatika
               </div>
             </div>
           </div>
@@ -146,7 +146,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       <footer className="border-t bg-background px-4 py-4">
         <div className="flex flex-col items-center text-sm text-muted-foreground space-y-2">
           <div className="text-center">
-            © 2025 Dinas Komunikasi Informatika, Statisitk dan Persandian. All rights reserved.
+            © {new Date().getFullYear()} Dinas Komunikasi Informatika, Statistik dan Persandian. All rights reserved.
           </div>
           <div className="flex flex-col items-center space-y-1">
             <div className="flex items-center space-x-4">
@@ -154,7 +154,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <span>✉️ satudata@kotawaringinbaratkab.go.id</span>
             </div>
             <div className="text-center">
-              Built with ❤️ by Bidang Statistik
+              Built with ❤️ by Aplikasi Informatika
             </div>
           </div>
         </div>

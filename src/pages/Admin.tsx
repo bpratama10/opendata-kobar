@@ -146,7 +146,7 @@ export default function Admin() {
 
           <div className="flex-1 flex flex-col">
             <header className="h-12 flex items-center border-b bg-background">
-              <SidebarTrigger className="ml-2" />
+              
               <div className="flex-1 flex items-center justify-between px-6">
                 <h1 className="text-lg font-semibold">Admin Dashboard</h1>
                 <div className="flex items-center space-x-4">
@@ -332,15 +332,15 @@ export default function Admin() {
         <footer className="border-t bg-background px-6 py-4">
           <div className="flex flex-col md:flex-row justify-between items-center text-sm text-muted-foreground">
             <div className="mb-2 md:mb-0">
-              © 2025 Open Data Kobar. All rights reserved.
+              © {new Date().getFullYear()} Dinas Komunikasi Informatika, Statistik dan Persandian. All rights reserved.
             </div>
             <div className="flex flex-col md:flex-row items-center space-y-1 md:space-y-0 md:space-x-4">
               <div className="flex items-center space-x-4">
-                <span>📞 +62 123 456 7890</span>
-                <span>✉️ support@opendatakobar.com</span>
+                <span>📞 +62 812-3366-2151</span>
+                <span>✉️ satudata@kotawaringinbaratkab.go.id</span>
               </div>
               <div className="text-center md:text-right">
-                Built with ❤️ by Open Data Team
+                Built with ❤️ by Aplikasi Informatika
               </div>
             </div>
           </div>

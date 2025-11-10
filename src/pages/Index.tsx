@@ -98,16 +98,23 @@ const Index = () => {
     return results;
   }, [searchQuery, searchFilters, datasets]);
 
-  const popularDatasets = datasets.sort((a, b) => b.downloadCount - a.downloadCount).slice(0, 3);
+  const popularDatasets = useMemo(() => {
+    return [...datasets].sort((a, b) => b.downloadCount - a.downloadCount).slice(0, 3);
+  }, [datasets]);
 
-  const recentDatasets = datasets
-    .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
-    .slice(0, 3);
+  const recentDatasets = useMemo(() => {
+    return [...datasets]
+      .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
+      .slice(0, 3);
+  }, [datasets]);
 
   // Extract all unique themes from datasets, plus "Uncategorized" if any dataset has no themes
-  const allThemes = datasets.flatMap((d) => (d.themes.length > 0 ? d.themes : ["Uncategorized"]));
-  const categories = Array.from(new Set(allThemes)).sort();
-  const totalDownloads = datasets.reduce((sum, d) => sum + d.downloadCount, 0);
+  const { categories, totalDownloads } = useMemo(() => {
+    const allThemes = datasets.flatMap((d) => (d.themes.length > 0 ? d.themes : ["Uncategorized"]));
+    const categories = Array.from(new Set(allThemes)).sort();
+    const totalDownloads = datasets.reduce((sum, d) => sum + d.downloadCount, 0);
+    return { categories, totalDownloads };
+  }, [datasets]);
 
   if (loading) {
     return (
@@ -204,11 +211,11 @@ const Index = () => {
                   )}
                   <div className="flex items-center gap-2">
                     {theme.name}
-                    {count > 0 && (
+                    {/* {count > 0 && (
                       <Badge variant="secondary" className="h-5 px-2 text-xs">
                         {count}
                       </Badge>
-                    )}
+                    )} */}
                   </div>
                 </Button>
               );

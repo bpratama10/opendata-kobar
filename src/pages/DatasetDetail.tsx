@@ -39,15 +39,20 @@ const DatasetDetail = () => {
   const { indicators, dataPoints, columns } = useDatasetTableData(dataset?.id || "");
   const sessionIdRef = useRef<string | null>(null);
 
-  // Calculate Year-over-Year Change and Latest Value
-  // Calculate Year-over-Year Change across all indicators for the latest two visible periods
+  // Calculate metrics based on number of indicators
   const visiblePeriodStarts = columns.map(col => col.period_start);
   const latestVisiblePeriod = visiblePeriodStarts.length > 0 ? visiblePeriodStarts[visiblePeriodStarts.length - 1] : null;
   const previousVisiblePeriod = visiblePeriodStarts.length > 1 ? visiblePeriodStarts[visiblePeriodStarts.length - 2] : null;
+  const firstVisiblePeriod = visiblePeriodStarts.length > 0 ? visiblePeriodStarts[0] : null;
 
+  const isSingleIndicator = indicators.length === 1;
+
+  // Calculate Year-over-Year Change or Growth Rate
   let yoyChange = null;
+  let yoyDescription = "";
   let latestPeriodSum = 0;
   let previousPeriodSum = 0;
+  let firstPeriodSum = 0;
 
   if (latestVisiblePeriod) {
     latestPeriodSum = dataPoints
@@ -55,26 +60,78 @@ const DatasetDetail = () => {
       .reduce((sum, dp) => sum + (dp.value || 0), 0);
   }
 
-  if (previousVisiblePeriod) {
+  if (isSingleIndicator && firstVisiblePeriod && visiblePeriodStarts.length > 1) {
+    // Single indicator: show overall growth rate from first to latest period
+    firstPeriodSum = dataPoints
+      .filter((dp) => dp.period_start === firstVisiblePeriod)
+      .reduce((sum, dp) => sum + (dp.value || 0), 0);
+
+    if (firstPeriodSum !== 0) {
+      yoyChange = ((latestPeriodSum - firstPeriodSum) / firstPeriodSum) * 100;
+      yoyDescription = `from ${format(new Date(firstVisiblePeriod), "yyyy")} to ${format(new Date(latestVisiblePeriod), "yyyy")}`;
+    } else if (latestPeriodSum !== 0) {
+      yoyChange = 100;
+      yoyDescription = `from ${format(new Date(firstVisiblePeriod), "yyyy")} to ${format(new Date(latestVisiblePeriod), "yyyy")}`;
+    } else {
+      yoyChange = 0;
+      yoyDescription = "No change";
+    }
+  } else if (previousVisiblePeriod) {
+    // Multiple indicators: show YoY change
     previousPeriodSum = dataPoints
       .filter((dp) => dp.period_start === previousVisiblePeriod)
       .reduce((sum, dp) => sum + (dp.value || 0), 0);
+
+    if (previousPeriodSum !== 0) {
+      yoyChange = ((latestPeriodSum - previousPeriodSum) / previousPeriodSum) * 100;
+      yoyDescription = latestVisiblePeriod && previousVisiblePeriod
+        ? `from ${format(new Date(previousVisiblePeriod), "yyyy")} to ${format(new Date(latestVisiblePeriod), "yyyy")}`
+        : "Insufficient data for YoY comparison";
+    } else if (latestPeriodSum !== 0) {
+      yoyChange = 100;
+      yoyDescription = "Infinite growth from zero";
+    } else {
+      yoyChange = 0;
+      yoyDescription = "No change from zero";
+    }
   }
 
-  if (previousPeriodSum !== 0) {
-    yoyChange = ((latestPeriodSum - previousPeriodSum) / previousPeriodSum) * 100;
-  } else if (latestPeriodSum !== 0) {
-    yoyChange = 100; // Infinite growth from zero
+  // Calculate Total Value or Highest Value
+  let cardTwoTitle = "";
+  let cardTwoValue = 0;
+  let cardTwoDescription = "";
+
+  if (isSingleIndicator) {
+    // Single indicator: show highest value across all periods
+    const allValues = dataPoints.map(dp => ({
+      value: dp.value || 0,
+      period: dp.period_start
+    }));
+
+    if (allValues.length > 0) {
+      const highest = allValues.reduce((max, current) => 
+        current.value > max.value ? current : max
+      , allValues[0]);
+
+      cardTwoTitle = "Highest Value";
+      cardTwoValue = highest.value;
+
+      if (latestPeriodSum !== 0 && highest.value !== 0) {
+        const percentageDiff = ((latestPeriodSum - highest.value) / highest.value) * 100;
+        const sign = percentageDiff >= 0 ? "+" : "";
+        cardTwoDescription = `Peak of ${highest.value.toLocaleString()} in ${format(new Date(highest.period), "yyyy")}, currently ${latestPeriodSum.toLocaleString()} (${sign}${percentageDiff.toFixed(2)}%)`;
+      } else {
+        cardTwoDescription = `Peak of ${highest.value.toLocaleString()} in ${format(new Date(highest.period), "yyyy")}`;
+      }
+    }
   } else {
-    yoyChange = 0; // No change from zero
+    // Multiple indicators: show total value for latest period
+    cardTwoTitle = "Total Value";
+    cardTwoValue = latestPeriodSum;
+    cardTwoDescription = latestVisiblePeriod
+      ? `sum of all indicators for ${format(new Date(latestVisiblePeriod), "yyyy")}`
+      : "No data available for total value";
   }
-
-  // Calculate Total Value (sum of all indicators for the latest visible period)
-  const totalValue = latestVisiblePeriod
-    ? dataPoints
-        .filter((dp) => dp.period_start === latestVisiblePeriod)
-        .reduce((sum, dp) => sum + (dp.value || 0), 0)
-    : 0;
 
   const getDownloadSessionId = () => {
     if (sessionIdRef.current) {
@@ -711,20 +768,18 @@ const DatasetDetail = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  Year-over-Year Change
+                  {isSingleIndicator ? "Growth Rate" : "Year-over-Year Change"}
                 </CardTitle>
                 <Percent className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
                   {yoyChange !== null
-                    ? `${yoyChange.toFixed(2)}%`
+                    ? `${yoyChange >= 0 ? '+' : ''}${yoyChange.toFixed(2)}%`
                     : "N/A"}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {latestVisiblePeriod && previousVisiblePeriod
-                    ? `from ${format(new Date(previousVisiblePeriod), "yyyy")} to ${format(new Date(latestVisiblePeriod), "yyyy")}`
-                    : "Insufficient data for YoY comparison"}
+                  {yoyDescription || "Insufficient data"}
                 </p>
               </CardContent>
             </Card>
@@ -732,18 +787,16 @@ const DatasetDetail = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  Total Value
+                  {cardTwoTitle || "Total Value"}
                 </CardTitle>
                 <Info className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {totalValue.toLocaleString() || "N/A"}
+                  {cardTwoValue ? cardTwoValue.toLocaleString() : "N/A"}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {latestVisiblePeriod
-                    ? `sum of all indicators for ${format(new Date(latestVisiblePeriod), "yyyy")}`
-                    : "No data available for total value"}
+                  {cardTwoDescription || "No data available"}
                 </p>
               </CardContent>
             </Card>

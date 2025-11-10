@@ -194,7 +194,7 @@ const Index = () => {
                   key={theme.id}
                   variant="outline"
                   size="lg"
-                  onClick={() => handleSearch("", { theme: theme.name })}
+                  onClick={() => navigate(`/dataset-list?theme=${encodeURIComponent(theme.name)}`)}
                   className="w-48 h-auto py-6 px-4 flex-col text-lg justify-start"
                 >
                   {theme.icon_url ? (

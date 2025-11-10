@@ -15,6 +15,7 @@ import {
 interface SearchBarProps {
   onSearch: (query: string, filters: SearchFilters) => void;
   placeholder?: string;
+  initialFilters?: SearchFilters;
 }
 
 export interface SearchFilters {
@@ -23,9 +24,9 @@ export interface SearchFilters {
   sortBy?: string;
 }
 
-export const SearchBar = ({ onSearch, placeholder = "Search datasets..." }: SearchBarProps) => {
+export const SearchBar = ({ onSearch, placeholder = "Search datasets...", initialFilters = {} }: SearchBarProps) => {
   const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<SearchFilters>({});
+  const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [showFilters, setShowFilters] = useState(false);
   const [themes, setThemes] = useState<string[]>([]);
 
@@ -35,13 +36,18 @@ export const SearchBar = ({ onSearch, placeholder = "Search datasets..." }: Sear
         .from('catalog_themes')
         .select('name')
         .order('name');
-      
+
       if (data) {
         setThemes(data.map(t => t.name));
       }
     };
     fetchThemes();
   }, []);
+
+  // Update filters when initialFilters change
+  useEffect(() => {
+    setFilters(initialFilters);
+  }, [JSON.stringify(initialFilters)]);
 
   const handleSearch = () => {
     onSearch(query, filters);

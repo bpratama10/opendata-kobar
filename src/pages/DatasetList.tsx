@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Download, Calendar, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +18,24 @@ import { useDatasets } from "@/hooks/useDatasets";
 
 const DatasetList = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
   const { datasets, loading, error } = useDatasets();
+
+  // Initialize filters from URL parameters
+  useEffect(() => {
+    const theme = searchParams.get('theme');
+    const format = searchParams.get('format');
+    const sortBy = searchParams.get('sortBy');
+
+    const initialFilters: SearchFilters = {};
+    if (theme) initialFilters.theme = theme;
+    if (format) initialFilters.format = format;
+    if (sortBy) initialFilters.sortBy = sortBy;
+
+    setSearchFilters(initialFilters);
+  }, [searchParams]);
 
   const handleSearch = (query: string, filters: SearchFilters) => {
     setSearchQuery(query);
@@ -111,7 +126,7 @@ const DatasetList = () => {
           <p className="text-muted-foreground text-lg mb-6">
             Browse all available datasets in a comprehensive list view
           </p>
-          <SearchBar onSearch={handleSearch} placeholder="Search datasets..." />
+          <SearchBar onSearch={handleSearch} placeholder="Search datasets..." initialFilters={searchFilters} />
         </div>
 
         <div className="mb-4">

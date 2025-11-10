@@ -182,6 +182,11 @@ const DatasetList = () => {
                           +{dataset.themes.length - 2} more
                         </span>
                       )}
+                      {dataset.is_priority && (
+                        <Badge variant="secondary" className="text-xs w-fit bg-yellow-500 text-black mt-1">
+                          Priority Data
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>

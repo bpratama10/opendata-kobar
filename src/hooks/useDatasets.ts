@@ -64,6 +64,7 @@ export const useDatasets = () => {
         .select(`
           *,
           is_priority,
+          priority_dataset_id,
           catalog_dataset_tags (
             catalog_tags (
               name
@@ -98,6 +99,23 @@ export const useDatasets = () => {
 
       if (metadataError) {
         throw metadataError;
+      }
+
+      // Fetch priority datasets that haven't been converted yet
+      const { data: priorityData, error: priorityError } = await supabase
+        .from('priority_datasets')
+        .select(`
+          *,
+          org_organizations!priority_datasets_assigned_org_fkey (
+            name,
+            short_name
+          )
+        `)
+        .in('status', ['unassigned', 'claimed', 'assigned'])
+        .order('updated_at', { ascending: false });
+
+      if (priorityError) {
+        throw priorityError;
       }
 
       // Get dataset IDs for bulk telemetry queries

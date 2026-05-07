@@ -223,6 +223,15 @@ export function UserManagement() {
       }
 
       // Step 2: Invite user via edge function
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("No active session access token available in this browser yet.");
+      }
+
       const { data: inviteData, error: inviteError } = await supabase.functions.invoke(
         'invite-user',
         {
@@ -232,6 +241,9 @@ export function UserManagement() {
             organizationId: selectedOrgId !== 'new' ? selectedOrgId : undefined,
             organizationName: selectedOrgId === 'new' ? newUserOrgName : undefined,
             roleId: selectedRoleId,
+          },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );

@@ -7,12 +7,12 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Database, 
-  Users, 
-  FileText, 
-  Tags, 
-  Building, 
+import {
+  Database,
+  Users,
+  FileText,
+  Tags,
+  Building,
   BarChart3,
   Shield,
   Download,
@@ -53,7 +53,7 @@ export default function Admin() {
   };
   const [stats, setStats] = useState<AdminStats>({
     datasets: 0,
-    users: 0, 
+    users: 0,
     downloads: 0,
     organizations: 0
   });
@@ -63,15 +63,15 @@ export default function Admin() {
     try {
       // Use org roles instead of profile.role (removed for security)
       const isGlobalAdmin = orgRoles.some((role) => role.code === 'ADMIN');
-      
+
       let datasetsQuery = supabase.from('catalog_metadata').select('*', { count: 'exact', head: true });
       let usersQuery = supabase.from('org_users').select('*', { count: 'exact', head: true }).eq('is_active', true);
       let downloadsQuery = supabase.from('telemetry_downloads').select('*', { count: 'exact', head: true });
-      
+
       // For non-admin users, filter by organization
       if (!isGlobalAdmin) {
         const { data: orgId, error: orgError } = await supabase.rpc('get_user_org_id');
-        
+
         if (orgError) {
           console.error('Error getting user org_id:', orgError);
           throw orgError;
@@ -146,24 +146,27 @@ export default function Admin() {
 
           <div className="flex-1 flex flex-col">
             <header className="h-12 flex items-center border-b bg-background">
-              
+
               <div className="flex-1 flex items-center justify-between px-6">
                 <h1 className="text-lg font-semibold">Admin Dashboard</h1>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
                     <Shield className="w-4 h-4 text-primary" />
-                    {orgRoles.length > 0 ? (
+                    {orgRoles && orgRoles.length > 0 ? (
                       <div className="flex items-center gap-1">
                         {orgRoles.map((role, index) => (
-                          <Badge key={`${role.code}-${index}`} variant="secondary" className="text-xs">
+                          <span key={`${role.code}-${index}`} className="text-xs font-medium bg-secondary px-2 py-0.5 rounded-md">
                             {role.name}
-                          </Badge>
+                          </span>
                         ))}
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">No Role</span>
                     )}
                   </div>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/admin/profile")}>
+                    Profile
+                  </Button>
                   <Button variant="outline" size="sm" onClick={handleSignOut}>
                     <LogOut className="w-4 h-4 mr-2" />
                     Keluar

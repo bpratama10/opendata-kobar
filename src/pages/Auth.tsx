@@ -187,17 +187,32 @@ export default function Auth() {
             
             <Separator />
             
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                {isLogin ? "Don't have an account?" : "Already have an account?"}
-              </p>
-              <Button 
-                variant="link" 
-                onClick={() => setIsLogin(!isLogin)}
-                className="p-0 h-auto text-primary"
-              >
-                {isLogin ? "Sign up here" : "Sign in here"}
-              </Button>
+            <div className="flex flex-col items-center justify-center space-y-3">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-muted-foreground">
+                  {isLogin ? "Don't have an account?" : "Already have an account?"}
+                </p>
+                <Button 
+                  variant="link" 
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="p-0 h-auto text-primary"
+                >
+                  {isLogin ? "Sign up here" : "Sign in here"}
+                </Button>
+              </div>
+              
+              {isLogin && (
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <span>Trouble logging in?</span>
+                  <Button 
+                    variant="link" 
+                    onClick={() => navigate("/forgot-password")}
+                    className="p-0 h-auto text-primary"
+                  >
+                    Reset password
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

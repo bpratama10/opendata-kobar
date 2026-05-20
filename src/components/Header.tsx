@@ -105,6 +105,10 @@ export const Header = () => {
                   Admin Panel
                 </Button>
               )}
+              <Button variant="outline" size="sm" onClick={() => navigate("/admin/profile")}>
+                <UserIcon className="w-4 h-4 mr-2" />
+                Profile
+              </Button>
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out

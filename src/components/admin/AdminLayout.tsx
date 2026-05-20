@@ -15,7 +15,7 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ children }: AdminLayoutProps) {
-  const { canAccessAdmin, loading, rolesReady, isAuthenticated } = useAuth();
+  const { canAccessAdmin, loading, rolesReady, isAuthenticated, orgRoles } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const hasRedirected = useRef(false);
@@ -86,8 +86,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
                     <Shield className="w-4 h-4 text-primary" />
-                    <span className="text-sm text-muted-foreground">Administrator</span>
+                    {orgRoles && orgRoles.length > 0 ? (
+                      <div className="flex items-center gap-1">
+                        {orgRoles.map((role, index) => (
+                          <span key={`${role.code}-${index}`} className="text-xs font-medium bg-secondary px-2 py-0.5 rounded-md">
+                            {role.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">No Role</span>
+                    )}
                   </div>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/admin/profile")}>
+                    Profile
+                  </Button>
                   <Button variant="outline" size="sm" onClick={handleSignOut}>
                     <LogOut className="w-4 h-4 mr-2" />
                     Sign Out
@@ -135,9 +148,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         </Sheet>
         <div className="flex-1 flex items-center justify-between ml-4">
           <h1 className="text-lg font-semibold">Admin</h1>
-          <Button variant="ghost" size="icon" onClick={handleSignOut}>
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/admin/profile")}>
+              Profile
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleSignOut}>
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </header>
       <main className="flex-1 p-4 bg-muted/40">

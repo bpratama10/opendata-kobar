@@ -27,6 +27,10 @@ import AdminDataTables from "./pages/admin/AdminDataTables";
 import PriorityData from "./pages/admin/PriorityData";
 import AdminAPIKeys from "./pages/admin/AdminAPIKeys";
 import NotFound from "./pages/NotFound";
+import ForgotPassword from "./pages/ForgotPassword";
+import AuthConfirm from "./pages/AuthConfirm";
+import UpdatePassword from "./pages/UpdatePassword";
+import AdminProfile from "./pages/admin/AdminProfile";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +44,10 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/dataset-list" element={<DatasetList />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/auth/confirm" element={<AuthConfirm />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
+          <Route path="/admin/profile" element={<AdminProfile />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/admin/datasets" element={<AdminDatasets />} />
           <Route path="/admin/datasets/add" element={<AdminDatasetAdd />} />

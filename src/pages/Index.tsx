@@ -156,7 +156,7 @@ const Index = () => {
             </h1>
 
             <p className="text-xl lg:text-2xl mb-8 opacity-90 leading-relaxed">
-             Temukan, telusuri, dan gunakan dataset resmi — gratis untuk publik.
+              Temukan, telusuri, dan gunakan dataset resmi — gratis untuk publik.
             </p>
 
             <div className="mb-12">

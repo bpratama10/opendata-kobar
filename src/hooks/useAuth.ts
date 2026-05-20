@@ -52,6 +52,13 @@ export const useAuth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       console.debug("🔐 Auth state change:", event, session?.user?.id);
+      
+      // If the user clicked a password reset link and Supabase processed the implicit token,
+      // it emits the PASSWORD_RECOVERY event. We must redirect them to the update password page.
+      if (event === "PASSWORD_RECOVERY") {
+        window.location.href = "/update-password";
+      }
+      
       // Invalidate the session query on any auth event
       queryClient.invalidateQueries({ queryKey: ["session"] });
     });

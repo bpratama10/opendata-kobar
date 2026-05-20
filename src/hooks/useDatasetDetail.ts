@@ -154,6 +154,9 @@ export const useDatasetDetail = (slug: string) => {
         maintainers,
         is_priority: data.is_priority ?? false,
         priorityDatasetId: data.priority_dataset_id ?? null,
+        temporal_start: data.temporal_start,
+        temporal_end: data.temporal_end,
+        created_at: data.created_at,
       };
 
       setDataset(transformedDataset);

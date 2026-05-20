@@ -385,6 +385,43 @@ const DatasetDetail = () => {
     );
   }
 
+  const getTemporalEndDisplay = (dataset: any) => {
+    if (!dataset.temporal_end) return "—";
+    if (!dataset.created_at) return dataset.temporal_end;
+    try {
+      const endParts = dataset.temporal_end.split("-");
+      const createdDate = new Date(dataset.created_at);
+      if (endParts.length === 3 && !isNaN(createdDate.getTime())) {
+        const endYear = parseInt(endParts[0], 10);
+        const endMonth = parseInt(endParts[1], 10) - 1; // 0-indexed month
+        const endDay = parseInt(endParts[2], 10);
+
+        // Check UTC comparison (most accurate for DB timezone)
+        const isSameUTC =
+          endYear === createdDate.getUTCFullYear() &&
+          endMonth === createdDate.getUTCMonth() &&
+          endDay === createdDate.getUTCDate();
+
+        // Check Local comparison as fallback/alternative
+        const isSameLocal =
+          endYear === createdDate.getFullYear() &&
+          endMonth === createdDate.getMonth() &&
+          endDay === createdDate.getDate();
+
+        // Simple string prefix check as another robust validation
+        const createdDatePrefix = dataset.created_at.split('T')[0];
+        const isSameString = createdDatePrefix === dataset.temporal_end;
+
+        if (isSameUTC || isSameLocal || isSameString) {
+          return "Masih Berjalan / Ongoing";
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing temporal dates:", e);
+    }
+    return dataset.temporal_end;
+  };
+
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     toast({
@@ -613,7 +650,13 @@ const DatasetDetail = () => {
                           <Calendar className="w-4 h-4" />
                           Periode Temporal
                         </div>
-                        <p className="text-muted-foreground">2023-01-01 s/d 2024-12-31</p>
+                        <p className="text-muted-foreground">
+                          {dataset.temporal_start ? (
+                            `${dataset.temporal_start} s/d ${getTemporalEndDisplay(dataset)}`
+                          ) : (
+                            "—"
+                          )}
+                        </p>
                       </div>
 
                       <div className="space-y-2">

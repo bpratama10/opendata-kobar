@@ -114,24 +114,24 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
   const slopeData =
     chartData.length >= 2
       ? [chartData[0], chartData[chartData.length - 1]].map((row) => ({
-          ...row,
-          periodLabel: row.periodLabel,
-        }))
+        ...row,
+        periodLabel: row.periodLabel,
+      }))
       : chartData;
 
   const pieData =
     indicatorCount > 1 && latestPeriod
       ? indicators
-          .map((indicator) => {
-            const datum = timeSeries.find(
-              (entry) => entry.indicatorId === indicator.id && entry.periodStart === latestPeriod.key
-            );
-            return {
-              name: indicator.label,
-              value: datum?.value ?? 0,
-            };
-          })
-          .filter((item) => item.value > 0)
+        .map((indicator) => {
+          const datum = timeSeries.find(
+            (entry) => entry.indicatorId === indicator.id && entry.periodStart === latestPeriod.key
+          );
+          return {
+            name: indicator.label,
+            value: datum?.value ?? 0,
+          };
+        })
+        .filter((item) => item.value > 0)
       : [];
 
   if (loading) {
@@ -152,7 +152,7 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <div className="text-center space-y-2">
-            <p className="text-muted-foreground">Error loading visualization data</p>
+            <p className="text-muted-foreground">Error dalam memuat data visualisasi</p>
             <p className="text-sm text-muted-foreground">{error}</p>
           </div>
         </CardContent>
@@ -165,9 +165,9 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <div className="text-center space-y-2">
-            <p className="text-muted-foreground">No data available for visualization</p>
+            <p className="text-muted-foreground">Tidak ada data yang tersedia untuk divisualisasikan</p>
             <p className="text-sm text-muted-foreground">
-              Contact an administrator to add data indicators and values.
+              Hubungi administrator untuk menambahkan data indikator dan nilai.
             </p>
           </div>
         </CardContent>
@@ -289,21 +289,21 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
               Data Visualization
             </CardTitle>
             <CardDescription>
-              Metadata-driven charts for {datasetTitle || "dataset"} trends and indicators
+              Visualisasi Indikator dari Dataset
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {primaryResource?.frequency && (
-              <Badge variant="outline">Frequency: {primaryResource.frequency}</Badge>
+              <Badge variant="outline">Frekuensi: {primaryResource.frequency}</Badge>
             )}
             {primaryResource?.unit && (
               <Badge variant="outline">Unit: {primaryResource.unit}</Badge>
             )}
             {primaryResource?.aggregationMethod && (
-              <Badge variant="outline">Aggregation: {primaryResource.aggregationMethod}</Badge>
+              <Badge variant="outline">Agregasi: {primaryResource.aggregationMethod}</Badge>
             )}
             {primaryResource?.timeDimension && (
-              <Badge variant="outline">Time: {primaryResource.timeDimension}</Badge>
+              <Badge variant="outline">Dimensi Waktu: {primaryResource.timeDimension}</Badge>
             )}
             {primaryResource?.chartType && (
               <Badge variant="secondary">Chart: {primaryResource.chartType}</Badge>
@@ -312,7 +312,7 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
         </div>
         {primaryResource?.interpretation && (
           <Alert>
-            <AlertTitle>Interpretation</AlertTitle>
+            <AlertTitle>Interpretasi</AlertTitle>
             <AlertDescription>{primaryResource.interpretation}</AlertDescription>
           </Alert>
         )}
@@ -343,7 +343,7 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Latest Value ({latestPeriod?.label})
+                  Nilai Terbaru / Terakhir ({latestPeriod?.label})
                 </CardTitle>
                 <CardDescription className="text-3xl font-semibold text-foreground">
                   {formatNumber(primaryDatum.value)} {primaryResource?.unit || primaryDatum.unit || ""}
@@ -356,13 +356,12 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
                   Year-over-Year Change
                 </CardTitle>
                 <CardDescription
-                  className={`text-2xl font-semibold ${
-                    yoyChange === null
-                      ? "text-muted-foreground"
-                      : yoyChange >= 0
-                        ? "text-emerald-600"
-                        : "text-red-600"
-                  }`}
+                  className={`text-2xl font-semibold ${yoyChange === null
+                    ? "text-muted-foreground"
+                    : yoyChange >= 0
+                      ? "text-emerald-600"
+                      : "text-red-600"
+                    }`}
                 >
                   {yoyChange === null ? "N/A" : `${yoyChange >= 0 ? "+" : ""}${yoyChange.toFixed(1)}%`}
                 </CardDescription>
@@ -382,7 +381,7 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
 
         {indicatorCount > 1 && (
           <div>
-            <h4 className="text-sm font-semibold mb-4">Indicator Comparison</h4>
+            <h4 className="text-sm font-semibold mb-4">Perbandingan Indikator</h4>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
@@ -426,7 +425,7 @@ export const DatasetInfographic = ({ datasetId, datasetTitle, primaryResource }:
           <div>
             <h4 className="text-sm font-semibold mb-4 flex items-center gap-2">
               <PieChartIcon className="w-4 h-4" />
-              Indicator Distribution ({latestPeriod?.label})
+              Distribusi Indikator ({latestPeriod?.label})
             </h4>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">

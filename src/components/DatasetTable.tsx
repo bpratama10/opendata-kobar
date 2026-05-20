@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useDatasetTableData } from "@/hooks/useDatasetTableData";
-import { BarChart3, Loader2, AlertTriangle } from "lucide-react";
+import { BarChart3, Table2, Loader2, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
 interface DatasetTableProps {
   datasetId: string;
@@ -67,9 +68,9 @@ export const DatasetTable = ({ datasetId }: DatasetTableProps) => {
 
       cells[column.period_start] = dataPoint
         ? {
-            value: dataPoint.value,
-            qualifier: dataPoint.qualifier,
-          }
+          value: dataPoint.value,
+          qualifier: dataPoint.qualifier,
+        }
         : null;
     });
 
@@ -82,13 +83,14 @@ export const DatasetTable = ({ datasetId }: DatasetTableProps) => {
   });
 
   return (
-    <Card>
+    <TooltipProvider>
+      <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5" />
+          <Table2 className="w-5 h-5" />
           Data Tables
         </CardTitle>
-        <CardDescription>Dataset indicators and values over time periods</CardDescription>
+        <CardDescription>Indikator dan Nilai dari Waktu ke Waktu</CardDescription>
       </CardHeader>
       <CardContent>
         {issues.length > 0 && (
@@ -137,22 +139,48 @@ export const DatasetTable = ({ datasetId }: DatasetTableProps) => {
                   </TableCell>
                   {columns.map((column) => {
                     const cellData = row.cells[column.period_start];
+                    
+                    const qualifier = cellData ? cellData.qualifier : "NA";
+                    const isNA = !cellData || qualifier === "NA" || cellData.value === null || cellData.value === undefined;
+                    
+                    let tooltipText = "";
+                    if (isNA) {
+                      tooltipText = "Tidak Ada Data";
+                    } else if (qualifier === "PRELIM") {
+                      tooltipText = "Data Sementara";
+                    } else if (qualifier === "EST") {
+                      tooltipText = "Data Perkiraan";
+                    }
+
+                    const cellContent = cellData && !isNA ? (
+                      <div className="space-y-1">
+                        <div className="font-mono text-sm">{formatCellValue(cellData.value)}</div>
+                        {qualifier !== "OFFICIAL" && (
+                          <Badge
+                            variant={qualifier === "PRELIM" ? "secondary" : "outline"}
+                            className="text-xs"
+                          >
+                            {qualifier}
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    );
+
                     return (
                       <TableCell key={column.id} className="text-center">
-                        {cellData ? (
-                          <div className="space-y-1">
-                            <div className="font-mono text-sm">{formatCellValue(cellData.value)}</div>
-                            {cellData.qualifier !== "OFFICIAL" && (
-                              <Badge
-                                variant={cellData.qualifier === "PRELIM" ? "secondary" : "outline"}
-                                className="text-xs"
-                              >
-                                {cellData.qualifier}
-                              </Badge>
-                            )}
-                          </div>
+                        {tooltipText ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="inline-block cursor-help">{cellContent}</div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p className="text-xs font-medium">{tooltipText}</p>
+                            </TooltipContent>
+                          </Tooltip>
                         ) : (
-                          <span className="text-muted-foreground">-</span>
+                          cellContent
                         )}
                       </TableCell>
                     );
@@ -165,13 +193,14 @@ export const DatasetTable = ({ datasetId }: DatasetTableProps) => {
 
         {indicators.length === 0 && !error && (
           <div className="text-center py-8 space-y-2">
-            <p className="text-muted-foreground">No table data available for this dataset</p>
+            <p className="text-muted-foreground">Belum ada data yang tersedia pada dataset</p>
             <p className="text-sm text-muted-foreground">
-              Contact an administrator to add data indicators and values.
+              Silahkan hubungi Penanggung Jawab Data untuk menambahkan data.
             </p>
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
+    </TooltipProvider>
   );
 };

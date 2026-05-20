@@ -35,6 +35,9 @@ export interface Dataset {
     interpretation?: string | null;
     isTimeSeries?: boolean | null;
   };
+  temporal_start?: string | null;
+  temporal_end?: string | null;
+  created_at?: string | null;
 }
 
 type TagRelation = {
@@ -207,6 +210,9 @@ export const useDatasets = () => {
           is_priority: dataset.is_priority ?? false,
           priorityDatasetId,
           primaryResource,
+          temporal_start: dataset.temporal_start,
+          temporal_end: dataset.temporal_end,
+          created_at: dataset.created_at,
         };
       });
 

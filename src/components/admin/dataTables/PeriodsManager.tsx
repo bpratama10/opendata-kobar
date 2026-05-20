@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ interface PeriodFormData {
 }
 
 export function PeriodsManager({ resourceId }: PeriodsManagerProps) {
-  const { periods, loading, createPeriod, updatePeriod, deletePeriod } = usePeriods(resourceId);
+  const { periods, loading, createPeriod, updatePeriod, deletePeriod, reorderPeriods } = usePeriods(resourceId);
   const [editingPeriod, setEditingPeriod] = useState<TableColumn | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<PeriodFormData>({
@@ -33,6 +33,41 @@ export function PeriodsManager({ resourceId }: PeriodsManagerProps) {
     is_hidden: false,
   });
   const { toast } = useToast();
+
+  const [localPeriods, setLocalPeriods] = useState<TableColumn[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [isHandlePressed, setIsHandlePressed] = useState(false);
+
+  useEffect(() => {
+    if (periods) {
+      setLocalPeriods(periods);
+    }
+  }, [periods]);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const updated = [...localPeriods];
+    const draggedItem = updated[draggedIndex];
+    updated.splice(draggedIndex, 1);
+    updated.splice(index, 0, draggedItem);
+
+    setDraggedIndex(index);
+    setLocalPeriods(updated);
+  };
+
+  const handleDragEnd = async () => {
+    setIsHandlePressed(false);
+    setDraggedIndex(null);
+    const ids = localPeriods.map(item => item.id);
+    await reorderPeriods(ids);
+  };
 
   const resetForm = () => {
     setFormData({
@@ -256,13 +291,13 @@ export function PeriodsManager({ resourceId }: PeriodsManagerProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Time Periods ({periods.length})</CardTitle>
+          <CardTitle>Time Periods ({localPeriods.length})</CardTitle>
           <CardDescription>
             These periods will appear as columns in your data table
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {periods.length === 0 ? (
+          {localPeriods.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
               No periods created yet. Add your first time period to get started.
@@ -280,10 +315,21 @@ export function PeriodsManager({ resourceId }: PeriodsManagerProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {periods.map((period) => (
-                  <TableRow key={period.id}>
+                {localPeriods.map((period, index) => (
+                  <TableRow 
+                    key={period.id}
+                    draggable={isHandlePressed}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className={`transition-colors duration-150 ${draggedIndex === index ? "opacity-50 bg-accent/50 cursor-grabbing" : ""}`}
+                  >
                     <TableCell>
-                      <GripVertical className="w-4 h-4 text-muted-foreground cursor-move" />
+                      <GripVertical 
+                        className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing hover:text-foreground transition-colors"
+                        onMouseDown={() => setIsHandlePressed(true)}
+                        onMouseUp={() => setIsHandlePressed(false)}
+                      />
                     </TableCell>
                     <TableCell className="font-medium">{period.column_label}</TableCell>
                     <TableCell>

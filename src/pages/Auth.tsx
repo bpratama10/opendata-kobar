@@ -61,7 +61,7 @@ export default function Auth() {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -80,7 +80,7 @@ export default function Auth() {
       });
       // Redirect will be handled by useEffect after profile is loaded
     }
-    
+
     setIsLoading(false);
   };
 
@@ -89,9 +89,9 @@ export default function Auth() {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    
+
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -112,7 +112,7 @@ export default function Auth() {
         description: "Check your email for the confirmation link",
       });
     }
-    
+
     setIsLoading(false);
   };
 
@@ -120,8 +120,8 @@ export default function Auth() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <div className="mb-6">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={() => navigate("/")}
             className="mb-4"
           >
@@ -133,16 +133,16 @@ export default function Auth() {
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">
-              {isLogin ? "Welcome Back" : "Create Account"}
+              {isLogin ? "Welcome Back" : "Buat Akun Baru"}
             </CardTitle>
             <CardDescription>
-              {isLogin 
-                ? "Sign in to your account to continue" 
-                : "Sign up to start discovering datasets. Roles are assigned by administrators."
+              {isLogin
+                ? "Masuk ke akun Anda untuk melanjutkan"
+                : "Daftar untuk mulai menemukan dataset. Role diberikan oleh admin."
               }
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent className="space-y-4">
             <form onSubmit={isLogin ? handleSignIn : handleSignUp} className="space-y-4">
               <div className="space-y-2">
@@ -150,7 +150,7 @@ export default function Auth() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="Masukkan Email Anda"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -159,13 +159,13 @@ export default function Auth() {
                   <p className="text-sm text-destructive">{errors.email}</p>
                 )}
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder="Masukkan Password Anda"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -174,42 +174,42 @@ export default function Auth() {
                   <p className="text-sm text-destructive">{errors.password}</p>
                 )}
               </div>
-              
+
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Loading..." : (
                   <>
                     {isLogin ? <LogIn className="w-4 h-4 mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
-                    {isLogin ? "Sign In" : "Sign Up"}
+                    {isLogin ? "Masuk" : "Daftar"}
                   </>
                 )}
               </Button>
             </form>
-            
+
             <Separator />
-            
+
             <div className="flex flex-col items-center justify-center space-y-3">
               <div className="flex items-center space-x-2">
                 <p className="text-sm text-muted-foreground">
-                  {isLogin ? "Don't have an account?" : "Already have an account?"}
+                  {isLogin ? "Belum Punya Akun?" : "Sudah Punya Akun?"}
                 </p>
-                <Button 
-                  variant="link" 
+                <Button
+                  variant="link"
                   onClick={() => setIsLogin(!isLogin)}
                   className="p-0 h-auto text-primary"
                 >
-                  {isLogin ? "Sign up here" : "Sign in here"}
+                  {isLogin ? "Daftar Disini" : "Masuk Disini"}
                 </Button>
               </div>
-              
+
               {isLogin && (
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <span>Trouble logging in?</span>
-                  <Button 
-                    variant="link" 
+                  <span>Masalah dengan Login?</span>
+                  <Button
+                    variant="link"
                     onClick={() => navigate("/forgot-password")}
                     className="p-0 h-auto text-primary"
                   >
-                    Reset password
+                    Lupa Password / Magic Link
                   </Button>
                 </div>
               )}

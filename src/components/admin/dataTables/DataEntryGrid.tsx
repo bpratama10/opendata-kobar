@@ -34,25 +34,25 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
   // Initialize grid data from existing data points (only when not saving)
   useEffect(() => {
     if (isSaving || indicatorsLoading || periodsLoading || dataPointsLoading) return;
-    
+
     const activeIndicators = indicators.filter(ind => ind.is_active);
     const visiblePeriods = periods.filter(per => !per.is_hidden);
     const newGridData: Record<string, CellValue> = {};
-    
+
     activeIndicators.forEach(indicator => {
       visiblePeriods.forEach(period => {
         const key = `${indicator.id}|${period.period_start}`;
-        const existingDataPoint = dataPoints.find(dp => 
+        const existingDataPoint = dataPoints.find(dp =>
           dp.indicator_id === indicator.id && dp.period_start === period.period_start
         );
-        
+
         newGridData[key] = {
           value: existingDataPoint?.value ?? null,
           qualifier: existingDataPoint?.qualifier ?? 'OFFICIAL'
         };
       });
     });
-    
+
     setGridData(newGridData);
     setHasChanges(false);
   }, [indicators, periods, dataPoints, isSaving, indicatorsLoading, periodsLoading, dataPointsLoading]);
@@ -69,9 +69,9 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
     setGridData(prev => {
       const currentCell = prev[key] || { value: null, qualifier: 'OFFICIAL' };
       // Auto-set qualifier based on business rules
-      const newQualifier = value === null ? 'NA' : 
+      const newQualifier = value === null ? 'NA' :
         (currentCell.qualifier === 'NA' ? 'OFFICIAL' : currentCell.qualifier);
-      
+
       return {
         ...prev,
         [key]: {
@@ -99,37 +99,37 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
     try {
       setIsSaving(true);
       const dataPointsToUpdate = [];
-      
+
       console.log('Starting save operation...');
       console.log('GridData:', gridData);
       console.log('ActiveIndicators:', activeIndicators);
       console.log('VisiblePeriods:', visiblePeriods);
-      
+
       for (const [key, cellValue] of Object.entries(gridData)) {
         const [indicatorId, periodStart] = key.split('|');
         const indicator = activeIndicators.find(ind => ind.id === indicatorId);
         const period = visiblePeriods.find(per => per.period_start === periodStart);
-        
+
         console.log(`Processing key: ${key}, value: ${cellValue.value}, qualifier: ${cellValue.qualifier}`);
         console.log(`Found indicator: ${indicator?.label}, Found period: ${period?.column_label}`);
-        
+
         if (indicator && period) {
-          const existingDataPoint = dataPoints.find(dp => 
+          const existingDataPoint = dataPoints.find(dp =>
             dp.indicator_id === indicatorId && dp.period_start === periodStart
           );
           const hasValueChanged = existingDataPoint?.value !== cellValue.value;
           const hasQualifierChanged = existingDataPoint?.qualifier !== cellValue.qualifier;
-          
+
           console.log(`Existing data point:`, existingDataPoint);
           console.log(`Value changed: ${hasValueChanged}, Qualifier changed: ${hasQualifierChanged}`);
-          
+
           if (hasValueChanged || hasQualifierChanged || !existingDataPoint) {
             // Validate and ensure proper qualifier before sending to database
             let validQualifier = cellValue.qualifier;
             if (!validQualifier || validQualifier === null) {
               validQualifier = cellValue.value === null ? 'NA' : 'OFFICIAL';
             }
-            
+
             dataPointsToUpdate.push({
               indicator_id: indicatorId,
               resource_id: resourceId,
@@ -148,7 +148,7 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
       if (dataPointsToUpdate.length > 0) {
         console.log('Calling bulkUpsertDataPoints...');
         await bulkUpsertDataPoints(dataPointsToUpdate);
-        
+
         toast({
           title: "Success",
           description: `Updated ${dataPointsToUpdate.length} data points`,
@@ -223,8 +223,8 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
             Enter data values for each indicator and time period combination.
           </p>
         </div>
-        <Button 
-          onClick={saveAllChanges} 
+        <Button
+          onClick={saveAllChanges}
           disabled={!hasChanges || isSaving}
           className="flex items-center gap-2"
         >
@@ -276,7 +276,7 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
                     {visiblePeriods.map(period => {
                       const key = getCellKey(indicator.id, period.period_start);
                       const cellData = gridData[key] || { value: null, qualifier: 'OFFICIAL' };
-                      
+
                       return (
                         <TableCell key={period.id} className="p-2">
                           <div className="space-y-1">
@@ -301,10 +301,10 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="OFFICIAL">Official</SelectItem>
-                                <SelectItem value="PRELIM">Preliminary</SelectItem>
-                                <SelectItem value="EST">Estimate</SelectItem>
-                                <SelectItem value="NA">Not Available</SelectItem>
+                                <SelectItem value="OFFICIAL">Resmi / Official</SelectItem>
+                                <SelectItem value="PRELIM">Angka Sementara / Preliminary</SelectItem>
+                                <SelectItem value="EST">Estimasi / Estimate</SelectItem>
+                                <SelectItem value="NA">Tidak Tersedia / Not Available</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

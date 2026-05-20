@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,7 @@ interface IndicatorFormData {
 }
 
 export function IndicatorsManager({ resourceId }: IndicatorsManagerProps) {
-  const { indicators, loading, createIndicator, updateIndicator, deleteIndicator } = useIndicators(resourceId);
+  const { indicators, loading, createIndicator, updateIndicator, deleteIndicator, reorderIndicators } = useIndicators(resourceId);
   const [editingIndicator, setEditingIndicator] = useState<DataIndicator | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<IndicatorFormData>({
@@ -35,6 +35,41 @@ export function IndicatorsManager({ resourceId }: IndicatorsManagerProps) {
     is_active: true,
   });
   const { toast } = useToast();
+
+  const [localIndicators, setLocalIndicators] = useState<DataIndicator[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [isHandlePressed, setIsHandlePressed] = useState(false);
+
+  useEffect(() => {
+    if (indicators) {
+      setLocalIndicators(indicators);
+    }
+  }, [indicators]);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const updated = [...localIndicators];
+    const draggedItem = updated[draggedIndex];
+    updated.splice(draggedIndex, 1);
+    updated.splice(index, 0, draggedItem);
+
+    setDraggedIndex(index);
+    setLocalIndicators(updated);
+  };
+
+  const handleDragEnd = async () => {
+    setIsHandlePressed(false);
+    setDraggedIndex(null);
+    const ids = localIndicators.map(item => item.id);
+    await reorderIndicators(ids);
+  };
 
   const resetForm = () => {
     setFormData({
@@ -230,13 +265,13 @@ export function IndicatorsManager({ resourceId }: IndicatorsManagerProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Indicators ({indicators.length})</CardTitle>
+          <CardTitle>Indicators ({localIndicators.length})</CardTitle>
           <CardDescription>
             These indicators will appear as rows in your data table
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {indicators.length === 0 ? (
+          {localIndicators.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               No indicators created yet. Add your first indicator to get started.
             </div>
@@ -253,10 +288,21 @@ export function IndicatorsManager({ resourceId }: IndicatorsManagerProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {indicators.map((indicator) => (
-                  <TableRow key={indicator.id}>
+                {localIndicators.map((indicator, index) => (
+                  <TableRow 
+                    key={indicator.id}
+                    draggable={isHandlePressed}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className={`transition-colors duration-150 ${draggedIndex === index ? "opacity-50 bg-accent/50 cursor-grabbing" : ""}`}
+                  >
                     <TableCell>
-                      <GripVertical className="w-4 h-4 text-muted-foreground cursor-move" />
+                      <GripVertical 
+                        className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing hover:text-foreground transition-colors"
+                        onMouseDown={() => setIsHandlePressed(true)}
+                        onMouseUp={() => setIsHandlePressed(false)}
+                      />
                     </TableCell>
                     <TableCell>
                       <code className="text-sm bg-muted px-1 py-0.5 rounded">

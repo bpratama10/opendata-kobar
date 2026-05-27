@@ -6,13 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, Edit, Eye, Database } from "lucide-react";
+import { Search, Plus, Edit, Eye, Database, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DatasetPreviewDialog } from "./DatasetPreviewDialog";
 import { UnpublishRequestDialog } from "./UnpublishRequestDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 interface Dataset {
   id: string;
@@ -39,13 +40,16 @@ interface Dataset {
 export function DatasetManagement() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { permissions, isProdusen } = useRoleAccess();
+  const { permissions, isProdusen, isAdmin } = useRoleAccess();
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [previewDataset, setPreviewDataset] = useState<Dataset | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [unpublishDialogOpen, setUnpublishDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [datasetToDelete, setDatasetToDelete] = useState<Dataset | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [userOrgId, setUserOrgId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -235,6 +239,91 @@ export function DatasetManagement() {
 
   const handleEdit = (dataset: Dataset) => {
     navigate(`/admin/datasets/edit/${dataset.id}`);
+  };
+
+  const handleDelete = async (dataset: Dataset) => {
+    setDatasetToDelete(dataset);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!datasetToDelete) return;
+    setDeleting(true);
+    try {
+      const catalogId = datasetToDelete.id;
+
+      // 1. Delete theme associations
+      const { error: themesErr } = await supabase
+        .from('catalog_dataset_themes')
+        .delete()
+        .eq('dataset_id', catalogId);
+      if (themesErr) throw themesErr;
+
+      // 2. Delete data resources
+      const { error: resourcesErr } = await supabase
+        .from('catalog_resources')
+        .delete()
+        .eq('dataset_id', catalogId);
+      if (resourcesErr) throw resourcesErr;
+
+      // 3. Handle priority dataset status reset if applicable
+      if (datasetToDelete.is_priority) {
+        // Find priority dataset id from the metadata row
+        const { data: catData } = await supabase
+          .from('catalog_metadata')
+          .select('priority_dataset_id')
+          .eq('id', catalogId)
+          .maybeSingle();
+
+        if (catData?.priority_dataset_id) {
+          const priorityId = catData.priority_dataset_id;
+
+          // Reset priority dataset status to unassigned
+          await supabase.from('priority_datasets').update({
+            status: 'unassigned',
+            assigned_org: null,
+            assigned_by: null,
+            assigned_at: null,
+            claimed_by: null,
+            claimed_at: null
+          }).eq('id', priorityId);
+
+          // Log the reset event
+          await supabase.from('priority_dataset_logs').insert({
+            priority_dataset_id: priorityId,
+            action: 'unassign',
+            actor_id: user?.id || 'system',
+            notes: 'Reset to unassigned due to catalog dataset deletion'
+          });
+        }
+      }
+
+      // 4. Finally, delete the catalog dataset itself
+      const { error: deleteErr } = await supabase
+        .from('catalog_metadata')
+        .delete()
+        .eq('id', catalogId);
+
+      if (deleteErr) throw deleteErr;
+
+      toast({
+        title: "Success",
+        description: "Dataset and its referenced values deleted successfully",
+      });
+
+      setDeleteDialogOpen(false);
+      setDatasetToDelete(null);
+      fetchDatasets();
+    } catch (error: any) {
+      console.error("Error deleting dataset:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete dataset",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Calculate counts for filter cards
@@ -607,6 +696,17 @@ export function DatasetManagement() {
                       >
                         <Database className="w-4 h-4" />
                       </Button>
+                      {isAdmin && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleDelete(dataset)}
+                          title="Hapus dataset"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -633,6 +733,36 @@ export function DatasetManagement() {
         dataset={selectedDataset}
         onSuccess={fetchDatasets}
       />
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" /> Hapus Dataset
+            </DialogTitle>
+            <DialogDescription>
+              Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-1">
+              <p className="text-sm font-semibold text-red-800">{datasetToDelete?.title}</p>
+              <p className="text-xs text-red-600">ID: {datasetToDelete?.id}</p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Apakah Anda yakin ingin menghapus dataset ini beserta semua data resource dan relasi tema secara permanen?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+              {deleting ? "Menghapus..." : "Hapus Permanen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

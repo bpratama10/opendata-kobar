@@ -713,6 +713,7 @@ export type Database = {
       }
       org_organizations: {
         Row: {
+          category: string
           created_at: string
           id: string
           metadata: Json | null
@@ -723,6 +724,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category?: string
           created_at?: string
           id?: string
           metadata?: Json | null
@@ -733,6 +735,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string
           created_at?: string
           id?: string
           metadata?: Json | null

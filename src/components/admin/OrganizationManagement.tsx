@@ -15,6 +15,7 @@ interface Organization {
   short_name: string | null;
   org_type: string;
   parent_id: string | null;
+  category: string;
   metadata: any;
   created_at: string;
   updated_at: string;
@@ -28,6 +29,7 @@ export function OrganizationManagement() {
   const [newOrgShortName, setNewOrgShortName] = useState("");
   const [newOrgType, setNewOrgType] = useState<string>("");
   const [selectedParentId, setSelectedParentId] = useState<string>("");
+  const [newOrgCategory, setNewOrgCategory] = useState<string>("Perangkat Daerah");
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
   const { toast } = useToast();
 
@@ -86,6 +88,7 @@ export function OrganizationManagement() {
           short_name: newOrgShortName.trim() || null,
           org_type: newOrgType as "WALIDATA" | "PRODUSEN_DATA" | "KOORDINATOR" | "LAINNYA",
           parent_id: selectedParentId === "none" ? null : selectedParentId || null,
+          category: newOrgCategory,
         })
         .select()
         .single();
@@ -105,7 +108,8 @@ export function OrganizationManagement() {
       setNewOrgShortName("");
       setNewOrgType("");
       setSelectedParentId("");
-      
+      setNewOrgCategory("Perangkat Daerah");
+
       toast({
         title: "Success",
         description: "Organization created successfully",
@@ -129,24 +133,25 @@ export function OrganizationManagement() {
           short_name: org.short_name?.trim() || null,
           org_type: org.org_type as "WALIDATA" | "PRODUSEN_DATA" | "KOORDINATOR" | "LAINNYA",
           parent_id: org.parent_id === "none" ? null : org.parent_id || null,
+          category: org.category,
         })
         .eq('id', org.id);
 
       if (error) {
         console.error('Error updating organization:', error);
         toast({
-          title: "Error", 
+          title: "Error",
           description: "Failed to update organization",
           variant: "destructive",
         });
         return;
       }
 
-      setOrganizations(organizations.map(o => 
+      setOrganizations(organizations.map(o =>
         o.id === org.id ? { ...org, updated_at: new Date().toISOString() } : o
       ));
       setEditingOrg(null);
-      
+
       toast({
         title: "Success",
         description: "Organization updated successfully",
@@ -155,7 +160,7 @@ export function OrganizationManagement() {
       console.error('Error updating organization:', error);
       toast({
         title: "Error",
-        description: "Failed to update organization", 
+        description: "Failed to update organization",
         variant: "destructive",
       });
     }
@@ -183,7 +188,7 @@ export function OrganizationManagement() {
       }
 
       setOrganizations(organizations.filter(org => org.id !== id));
-      
+
       toast({
         title: "Success",
         description: "Organization deleted successfully",
@@ -228,7 +233,7 @@ export function OrganizationManagement() {
           <CardTitle>Add New Organization</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <Label htmlFor="org-name">Name *</Label>
               <Input
@@ -259,6 +264,22 @@ export function OrganizationManagement() {
                       {type.label}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="org-category">Category *</Label>
+              <Select value={newOrgCategory} onValueChange={setNewOrgCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih kategori" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Perangkat Daerah">Perangkat Daerah</SelectItem>
+                  <SelectItem value="Perangkat Daerah Provinsi">Perangkat Daerah Provinsi</SelectItem>
+                  <SelectItem value="Instansi Vertikal">Instansi Vertikal</SelectItem>
+                  <SelectItem value="BUMN">BUMN</SelectItem>
+                  <SelectItem value="BUMD">BUMD</SelectItem>
+                  <SelectItem value="Lembaga Non-Struktural">Lembaga Non-Struktural</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -333,6 +354,7 @@ export function OrganizationManagement() {
                   <th className="text-left p-2">Name</th>
                   <th className="text-left p-2">Short Name</th>
                   <th className="text-left p-2">Type</th>
+                  <th className="text-left p-2">Category</th>
                   <th className="text-left p-2">Parent</th>
                   <th className="text-left p-2">Created</th>
                   <th className="text-left p-2">Actions</th>
@@ -346,19 +368,19 @@ export function OrganizationManagement() {
                         <td className="p-2">
                           <Input
                             value={editingOrg.name}
-                            onChange={(e) => setEditingOrg({...editingOrg, name: e.target.value})}
+                            onChange={(e) => setEditingOrg({ ...editingOrg, name: e.target.value })}
                           />
                         </td>
                         <td className="p-2">
                           <Input
                             value={editingOrg.short_name || ""}
-                            onChange={(e) => setEditingOrg({...editingOrg, short_name: e.target.value || null})}
+                            onChange={(e) => setEditingOrg({ ...editingOrg, short_name: e.target.value || null })}
                           />
                         </td>
                         <td className="p-2">
-                          <Select 
-                            value={editingOrg.org_type} 
-                            onValueChange={(value) => setEditingOrg({...editingOrg, org_type: value})}
+                          <Select
+                            value={editingOrg.org_type}
+                            onValueChange={(value) => setEditingOrg({ ...editingOrg, org_type: value })}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue />
@@ -373,9 +395,26 @@ export function OrganizationManagement() {
                           </Select>
                         </td>
                         <td className="p-2">
-                          <Select 
-                            value={editingOrg.parent_id || "none"} 
-                            onValueChange={(value) => setEditingOrg({...editingOrg, parent_id: value === "none" ? null : value})}
+                          <Select
+                            value={editingOrg.category || "Perangkat Daerah"}
+                            onValueChange={(value) => setEditingOrg({ ...editingOrg, category: value })}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Pilih kategori" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Perangkat Daerah">Perangkat Daerah</SelectItem>
+                              <SelectItem value="Instansi Vertikal">Instansi Vertikal</SelectItem>
+                              <SelectItem value="BUMN">BUMN</SelectItem>
+                              <SelectItem value="BUMD">BUMD</SelectItem>
+                              <SelectItem value="Lembaga Non-Struktural">Lembaga Non-Struktural</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="p-2">
+                          <Select
+                            value={editingOrg.parent_id || "none"}
+                            onValueChange={(value) => setEditingOrg({ ...editingOrg, parent_id: value === "none" ? null : value })}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue />
@@ -429,8 +468,13 @@ export function OrganizationManagement() {
                           </Badge>
                         </td>
                         <td className="p-2">
-                          {org.parent_id ? 
-                            organizations.find(p => p.id === org.parent_id)?.name || "Unknown" 
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                            {org.category || "Perangkat Daerah"}
+                          </Badge>
+                        </td>
+                        <td className="p-2">
+                          {org.parent_id ?
+                            organizations.find(p => p.id === org.parent_id)?.name || "Unknown"
                             : "—"
                           }
                         </td>
@@ -439,15 +483,15 @@ export function OrganizationManagement() {
                         </td>
                         <td className="p-2">
                           <div className="flex space-x-2">
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => setEditingOrg(org)}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => deleteOrganization(org.id)}
                             >

@@ -47,6 +47,11 @@ export const useDatasetDetail = (slug: string) => {
         .from('catalog_metadata')
         .select(`
           *,
+          organization:org_organizations!fk_catalog_metadata_publisher_org_id (
+            id,
+            name,
+            short_name
+          ),
           catalog_dataset_tags (
             catalog_tags (
               name
@@ -119,6 +124,15 @@ export const useDatasetDetail = (slug: string) => {
 
       const downloadCount = downloadCountError ? 0 : (downloadCountData || 0);
 
+      const orgRaw = (data as any).organization;
+      const organization = orgRaw
+        ? {
+            id: orgRaw.id,
+            name: orgRaw.name,
+            short_name: orgRaw.short_name,
+          }
+        : null;
+
       const transformedDataset: Dataset = {
         id: data.id,
         slug: data.slug,
@@ -152,6 +166,7 @@ export const useDatasetDetail = (slug: string) => {
         contact_email: data.contact_email,
         language: data.language,
         maintainers,
+        organization,
         is_priority: data.is_priority ?? false,
         priorityDatasetId: data.priority_dataset_id ?? null,
         temporal_start: data.temporal_start,

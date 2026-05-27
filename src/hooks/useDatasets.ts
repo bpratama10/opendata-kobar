@@ -21,6 +21,11 @@ export interface Dataset {
   contact_email?: string;
   language?: string;
   maintainers?: string[];
+  organization?: {
+    id: string;
+    name: string;
+    short_name: string | null;
+  } | null;
   is_priority?: boolean;
   priorityDatasetId?: string | null;
   primaryResource?: {

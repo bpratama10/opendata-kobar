@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Download,
@@ -23,12 +23,26 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useDatasetDetail } from "@/hooks/useDatasetDetail";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { DatasetTable } from "@/components/DatasetTable";
 import { DatasetInfographic } from "@/components/DatasetInfographic";
 import { Footer } from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
 import { useDatasetTableData } from "@/hooks/useDatasetTableData";
 import { format, differenceInYears } from "date-fns";
+
+const HoverableOrgText = ({ shortName, fullName }: { shortName: string; fullName: string }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  return (
+    <span
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="cursor-pointer transition-all duration-200 ease-in-out border-b border-dotted border-muted-foreground hover:text-foreground font-medium"
+    >
+      {isHovered ? fullName : shortName}
+    </span>
+  );
+};
 
 const DatasetDetail = () => {
   const { slug } = useParams();
@@ -460,7 +474,22 @@ const DatasetDetail = () => {
 
               <h1 className="text-3xl font-semibold mb-3 leading-tight">{dataset.title}</h1>
 
-              <p className="text-muted-foreground text-lg mb-4">{dataset.source}</p>
+              <div className="text-muted-foreground text-lg mb-4 flex items-center gap-2 flex-wrap">
+                <span>
+                  {dataset.maintainers && dataset.maintainers.length > 0 
+                    ? dataset.maintainers.join(", ") 
+                    : "Tidak ada penanggung jawab"}
+                </span>
+                {dataset.organization && (
+                  <>
+                    <span>-</span>
+                    <HoverableOrgText 
+                      shortName={dataset.organization.short_name || dataset.organization.name}
+                      fullName={dataset.organization.name}
+                    />
+                  </>
+                )}
+              </div>
 
               <div className="flex flex-wrap gap-2 mb-6">
                 {dataset.tags.map((tag) => (

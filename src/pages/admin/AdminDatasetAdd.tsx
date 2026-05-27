@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { LicenseExplanationDialog } from "@/components/admin/LicenseExplanationDialog";
 import { ArrowLeft, Save, Send } from "lucide-react";
 import { z } from "zod";
 
@@ -522,7 +523,10 @@ export default function AdminDatasetAdd() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="license">Lisensi *</Label>
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="license">Lisensi *</Label>
+                  <LicenseExplanationDialog />
+                </div>
                 <Select
                   value={formData.license_code}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, license_code: value }))}

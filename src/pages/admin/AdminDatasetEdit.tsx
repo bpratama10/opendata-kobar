@@ -11,8 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { ArrowLeft, Save } from "lucide-react";
-import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
+import { LicenseExplanationDialog } from "@/components/admin/LicenseExplanationDialog";
+import { z } from "zod";
 
 const datasetSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(255, "Title must be less than 255 characters"),
@@ -118,7 +119,7 @@ export default function AdminDatasetEdit() {
 
   const fetchDataset = async () => {
     if (!id) return;
-    
+
     setFetchingDataset(true);
     try {
       // Fetch dataset metadata
@@ -141,7 +142,7 @@ export default function AdminDatasetEdit() {
       // RLS policies will handle access control automatically
       // If we got here and can read the dataset, we should be able to edit it
       setCanEdit(true);
-      
+
       // Check if this is a priority dataset
       setIsPriorityDataset(dataset.is_priority === true);
 
@@ -154,10 +155,10 @@ export default function AdminDatasetEdit() {
       const themeIds = themeData?.map(t => t.theme_id) || [];
 
       // Populate form
-      const keywordsArray: string[] = Array.isArray(dataset.keywords) 
+      const keywordsArray: string[] = Array.isArray(dataset.keywords)
         ? dataset.keywords.filter((k): k is string => typeof k === 'string')
         : [];
-      
+
       // Convert maintainers array to comma-separated string
       const maintainersArray: string[] = Array.isArray(dataset.maintainers)
         ? dataset.maintainers.filter((m): m is string => typeof m === 'string')
@@ -295,17 +296,17 @@ export default function AdminDatasetEdit() {
     try {
       // Update dataset metadata
       const { selected_org_id, selected_theme_ids, maintainers, ...datasetFields } = formData;
-      
+
       // Parse maintainers from comma-separated string to array
       const maintainersArray = maintainers
         ? maintainers.split(',').map(m => m.trim()).filter(m => m.length > 0)
         : [];
-      
+
       // For priority datasets, exclude title and slug from updates
-      const updateFields = isPriorityDataset 
+      const updateFields = isPriorityDataset
         ? Object.fromEntries(
-            Object.entries(datasetFields).filter(([key]) => key !== 'title' && key !== 'slug')
-          )
+          Object.entries(datasetFields).filter(([key]) => key !== 'title' && key !== 'slug')
+        )
         : datasetFields;
 
       const { error: updateError } = await supabase
@@ -341,7 +342,7 @@ export default function AdminDatasetEdit() {
           dataset_id: id,
           theme_id: themeId
         }));
-        
+
         await supabase
           .from('catalog_dataset_themes')
           .insert(themeAssociations);
@@ -458,24 +459,24 @@ export default function AdminDatasetEdit() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">Deskripsi</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Brief description of the dataset"
+                placeholder="Deskripsi singkat tentang dataset"
                 rows={3}
               />
               {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="abstract">Abstract</Label>
+              <Label htmlFor="abstract">Abstraksi</Label>
               <Textarea
                 id="abstract"
                 value={formData.abstract}
                 onChange={(e) => setFormData(prev => ({ ...prev, abstract: e.target.value }))}
-                placeholder="Detailed abstract of the dataset"
+                placeholder="Abstraksi singkat tentang dataset"
                 rows={4}
               />
               {errors.abstract && <p className="text-sm text-destructive">{errors.abstract}</p>}
@@ -496,7 +497,7 @@ export default function AdminDatasetEdit() {
 
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="contact_email">Contact Email</Label>
+                <Label htmlFor="contact_email">Email Kontak</Label>
                 <Input
                   id="contact_email"
                   type="email"
@@ -507,23 +508,23 @@ export default function AdminDatasetEdit() {
                 {errors.contact_email && <p className="text-sm text-destructive">{errors.contact_email}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="language">Language *</Label>
+                <Label htmlFor="language">Bahasa *</Label>
                 <Select
                   value={formData.language}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, language: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select language" />
+                    <SelectValue placeholder="Pilih bahasa" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="id">Indonesian</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="id">Indonesia</SelectItem>
+                    <SelectItem value="en">Inggris</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.language && <p className="text-sm text-destructive">{errors.language}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="organization">Assign to Organization *</Label>
+                <Label htmlFor="organization">Organisasi *</Label>
                 <Select
                   value={formData.selected_org_id}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, selected_org_id: value }))}
@@ -533,7 +534,7 @@ export default function AdminDatasetEdit() {
                     <SelectValue placeholder="Pilih organisasi">
                       {formData.selected_org_id && organizations.find((org) => org.id === formData.selected_org_id)
                         ? organizations.find((org) => org.id === formData.selected_org_id)?.short_name ||
-                          organizations.find((org) => org.id === formData.selected_org_id)?.name
+                        organizations.find((org) => org.id === formData.selected_org_id)?.name
                         : "Pilih organisasi"}
                     </SelectValue>
                   </SelectTrigger>
@@ -565,17 +566,17 @@ export default function AdminDatasetEdit() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="classification">Classification *</Label>
+                <Label htmlFor="classification">Klasifikasi *</Label>
                 <Select
                   value={formData.classification_code}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, classification_code: value as "PUBLIC" | "TERBATAS" }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select classification" />
+                    <SelectValue placeholder="Pilih klasifikasi" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="PUBLIC">Public</SelectItem>
-                    <SelectItem value="TERBATAS">Restricted</SelectItem>
+                    <SelectItem value="PUBLIC">Publik</SelectItem>
+                    <SelectItem value="TERBATAS">Terbatas</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.classification_code && <p className="text-sm text-destructive">{errors.classification_code}</p>}
@@ -584,13 +585,16 @@ export default function AdminDatasetEdit() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="license">License *</Label>
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="license">Lisensi *</Label>
+                  <LicenseExplanationDialog />
+                </div>
                 <Select
                   value={formData.license_code}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, license_code: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select license" />
+                    <SelectValue placeholder="Pilih lisensi" />
                   </SelectTrigger>
                   <SelectContent>
                     {licenses.map((license) => (
@@ -603,13 +607,13 @@ export default function AdminDatasetEdit() {
                 {errors.license_code && <p className="text-sm text-destructive">{errors.license_code}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="frequency">Update Frequency *</Label>
+                <Label htmlFor="frequency">Frekuensi Update *</Label>
                 <Select
                   value={formData.update_frequency_code}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, update_frequency_code: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select frequency" />
+                    <SelectValue placeholder="Pilih frekuensi update" />
                   </SelectTrigger>
                   <SelectContent>
                     {frequencies.map((freq) => (
@@ -625,7 +629,7 @@ export default function AdminDatasetEdit() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="temporal_start">Temporal Start</Label>
+                <Label htmlFor="temporal_start">Tanggal Mulai Berlaku</Label>
                 <Input
                   id="temporal_start"
                   type="date"
@@ -634,7 +638,7 @@ export default function AdminDatasetEdit() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="temporal_end">Temporal End</Label>
+                <Label htmlFor="temporal_end">Tanggal Berakhir Berlaku</Label>
                 <Input
                   id="temporal_end"
                   type="date"
@@ -645,16 +649,16 @@ export default function AdminDatasetEdit() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="keywords">Keywords</Label>
+              <Label htmlFor="keywords">Kata Kunci</Label>
               <div className="flex space-x-2">
                 <Input
                   value={keywordInput}
                   onChange={(e) => setKeywordInput(e.target.value)}
-                  placeholder="Add keyword"
+                  placeholder="Tambah kata kunci"
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
                 />
                 <Button type="button" onClick={addKeyword} variant="outline">
-                  Add
+                  Tambah
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -671,10 +675,10 @@ export default function AdminDatasetEdit() {
             </div>
 
             <div className="space-y-2">
-              <Label>Themes (Taxonomy)</Label>
+              <Label>Tema</Label>
               <div className="border rounded-md p-4 space-y-2 max-h-64 overflow-y-auto">
                 {themes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No themes available</p>
+                  <p className="text-sm text-muted-foreground">Tidak ada tema yang tersedia</p>
                 ) : (
                   themes.map((theme) => (
                     <div key={theme.id} className="flex items-center space-x-2">
@@ -685,7 +689,7 @@ export default function AdminDatasetEdit() {
                         onChange={() => toggleTheme(theme.id)}
                         className="rounded border-gray-300"
                       />
-                      <label 
+                      <label
                         htmlFor={`theme-${theme.id}`}
                         className="text-sm cursor-pointer flex-1"
                       >
@@ -720,7 +724,7 @@ export default function AdminDatasetEdit() {
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 type="button"
                 onClick={handleSave}
                 disabled={loading}

@@ -73,6 +73,11 @@ export const useDatasets = () => {
           *,
           is_priority,
           priority_dataset_id,
+          organization:org_organizations!fk_catalog_metadata_publisher_org_id (
+            id,
+            name,
+            short_name
+          ),
           catalog_dataset_tags (
             catalog_tags (
               name
@@ -218,6 +223,11 @@ export const useDatasets = () => {
           temporal_start: dataset.temporal_start,
           temporal_end: dataset.temporal_end,
           created_at: dataset.created_at,
+          organization: dataset.organization ? {
+            id: dataset.organization.id,
+            name: dataset.organization.name,
+            short_name: dataset.organization.short_name,
+          } : null,
         };
       });
 

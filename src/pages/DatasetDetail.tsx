@@ -15,6 +15,10 @@ import {
   BarChart3,
   TrendingUp,
   Percent,
+  ExternalLink,
+  Copy,
+  Check,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +52,9 @@ const DatasetDetail = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  const [apaCopied, setApaCopied] = useState(false);
+  const [ieeeCopied, setIeeeCopied] = useState(false);
 
   const { dataset, loading, error } = useDatasetDetail(slug || "");
   const { indicators, dataPoints, columns } = useDatasetTableData(dataset?.id || "");
@@ -444,6 +451,41 @@ const DatasetDetail = () => {
     });
   };
 
+  const getCitationYear = () => {
+    if (dataset.lastUpdated) {
+      const parsed = new Date(dataset.lastUpdated);
+      if (!isNaN(parsed.getTime())) return parsed.getFullYear();
+    }
+    if (dataset.created_at) {
+      const parsed = new Date(dataset.created_at);
+      if (!isNaN(parsed.getTime())) return parsed.getFullYear();
+    }
+    return new Date().getFullYear();
+  };
+
+  const citationYear = getCitationYear();
+  const organizationName = dataset.organization?.name || "Pemerintah Kabupaten Kotawaringin Barat";
+  const citationVersion = dataset.version || "1.0.0";
+  const citationUrl = window.location.href;
+
+  const apaCitation = `${organizationName}. (${citationYear}). ${dataset.title} (Versi ${citationVersion}) [Data set]. Portal Satu Data Kobar. ${citationUrl}`;
+  const ieeeCitation = `[1] ${organizationName}, "${dataset.title}," Portal Satu Data Kobar, Versi ${citationVersion}, ${citationYear}. [Online]. Available: ${citationUrl}`;
+
+  const copyToClipboard = (text: string, type: 'APA' | 'IEEE') => {
+    navigator.clipboard.writeText(text);
+    if (type === 'APA') {
+      setApaCopied(true);
+      setTimeout(() => setApaCopied(false), 2000);
+    } else {
+      setIeeeCopied(true);
+      setTimeout(() => setIeeeCopied(false), 2000);
+    }
+    toast({
+      title: "Citation Copied",
+      description: `Copied ${type} citation to clipboard successfully!`,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -580,7 +622,7 @@ const DatasetDetail = () => {
                           <Globe className="w-4 h-4" />
                           Slug
                         </div>
-                        <p className="text-muted-foreground font-mono text-sm">dataset-{dataset.id}</p>
+                        <p className="text-muted-foreground font-mono text-sm">{dataset.slug}</p>
                       </div>
 
                       <div className="space-y-2">
@@ -645,8 +687,12 @@ const DatasetDetail = () => {
                           <Eye className="w-4 h-4" />
                           Klasifikasi
                         </div>
-                        <Badge variant="outline" className="w-fit">
-                          PUBLIC
+                        <Badge variant="outline" className={
+                          dataset.classification_code === 'TERBATAS'
+                            ? "border-amber-500 text-amber-500 bg-amber-500/10"
+                            : "border-green-500 text-green-500 bg-green-500/10"
+                        }>
+                          {dataset.classification_code === 'TERBATAS' ? 'TERBATAS' : 'PUBLIC'}
                         </Badge>
                       </div>
 
@@ -655,15 +701,39 @@ const DatasetDetail = () => {
                           <Globe className="w-4 h-4" />
                           Bahasa
                         </div>
-                        <p className="text-muted-foreground">Bahasa Indonesia (ID)</p>
+                        <p className="text-muted-foreground">
+                          {dataset.language?.toLowerCase() === 'id' ? 'Bahasa Indonesia (ID)' : 
+                           dataset.language?.toLowerCase() === 'en' ? 'English (EN)' : 
+                           dataset.language || 'Bahasa Indonesia (ID)'}
+                        </p>
                       </div>
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <FileText className="w-4 h-4" />
-                          Kode Lisensi
+                          Lisensi
                         </div>
-                        <Badge variant="outline">CC-BY-4.0</Badge>
+                        <div>
+                          {dataset.license ? (
+                            dataset.license.url ? (
+                              <a 
+                                href={dataset.license.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="inline-flex items-center gap-1 hover:underline"
+                              >
+                                <Badge variant="outline" className="cursor-pointer hover:bg-muted font-mono inline-flex items-center gap-1">
+                                  {dataset.license.name}
+                                  <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                                </Badge>
+                              </a>
+                            ) : (
+                              <Badge variant="outline" className="font-mono">{dataset.license.name}</Badge>
+                            )
+                          ) : (
+                            <Badge variant="outline" className="font-mono">{dataset.license_code || "CC-BY-4.0"}</Badge>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-2">
@@ -671,7 +741,9 @@ const DatasetDetail = () => {
                           <Calendar className="w-4 h-4" />
                           Frekuensi Update
                         </div>
-                        <p className="text-muted-foreground">Bulanan</p>
+                        <p className="text-muted-foreground">
+                          {dataset.frequency?.name || "Tidak tersedia"}
+                        </p>
                       </div>
 
                       <div className="space-y-2">
@@ -690,10 +762,30 @@ const DatasetDetail = () => {
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm font-medium">
+                          <Globe className="w-4 h-4" />
+                          Cakupan Wilayah (Spasial)
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {dataset.spatial_coverage && dataset.spatial_coverage.length > 0 ? (
+                            dataset.spatial_coverage.map((sc) => (
+                              <Badge key={sc.id} variant="secondary" className="text-xs">
+                                {sc.name}
+                              </Badge>
+                            ))
+                          ) : (
+                            <p className="text-muted-foreground">—</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium">
                           <Eye className="w-4 h-4" />
                           Status Publikasi
                         </div>
-                        <Badge variant="secondary">Published</Badge>
+                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                          {dataset.publication_status || "Published"}
+                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -800,23 +892,123 @@ const DatasetDetail = () => {
                   <CardContent className="space-y-3 text-sm text-muted-foreground">
                     <div className="flex items-start gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                      <p>This dataset is provided under Open Data License</p>
+                      <p>
+                        This dataset is licensed under{" "}
+                        <span className="font-semibold text-foreground">
+                          {dataset.license?.name || dataset.license_code || "Open Data License"}
+                        </span>.
+                      </p>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                      <p>Attribution required when using this data</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                      <p>Commercial use is permitted with proper citation</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                      <p>Data quality and accuracy cannot be guaranteed</p>
-                    </div>
+                    {dataset.license?.notes ? (
+                      dataset.license.notes.split('\n').filter(line => line.trim().length > 0).map((line, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                          <p>{line.replace(/^[-\*\s]+/, '')}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <>
+                        <div className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                          <p>Attribution required when using this data</p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                          <p>Commercial use is permitted with proper citation</p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                          <p>Data quality and accuracy cannot be guaranteed</p>
+                        </div>
+                      </>
+                    )}
+                    {dataset.license?.url && (
+                      <div className="pt-2">
+                        <a
+                          href={dataset.license.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          Read full license terms
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Citation Card */}
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <BookmarkPlus className="w-5 h-5 text-primary" />
+                    Sitasi Dataset / Cite Dataset
+                  </CardTitle>
+                  <CardDescription>
+                    Gunakan format sitasi berikut untuk merujuk dataset ini dalam karya akademis, penelitian, atau publikasi Anda.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* APA format */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">APA Style</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyToClipboard(apaCitation, 'APA')}
+                        className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {apaCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-green-500" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            Copy Citation
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <div className="p-3 bg-muted rounded-md text-sm font-mono break-all leading-relaxed select-all">
+                      {apaCitation}
+                    </div>
+                  </div>
+
+                  {/* IEEE format */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">IEEE Style</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyToClipboard(ieeeCitation, 'IEEE')}
+                        className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {ieeeCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-green-500" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            Copy Citation
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <div className="p-3 bg-muted rounded-md text-sm font-mono break-all leading-relaxed select-all">
+                      {ieeeCitation}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </section>

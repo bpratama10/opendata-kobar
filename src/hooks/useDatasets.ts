@@ -43,6 +43,24 @@ export interface Dataset {
   temporal_start?: string | null;
   temporal_end?: string | null;
   created_at?: string | null;
+  version?: string;
+  license?: {
+    code: string;
+    name: string;
+    url: string | null;
+    notes: string | null;
+  } | null;
+  frequency?: {
+    code: string;
+    name: string;
+    notes: string | null;
+  } | null;
+  spatial_coverage?: Array<{
+    id: string;
+    name: string;
+    code: string;
+    level: string;
+  }>;
 }
 
 type TagRelation = {

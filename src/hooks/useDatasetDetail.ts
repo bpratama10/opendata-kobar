@@ -52,6 +52,25 @@ export const useDatasetDetail = (slug: string) => {
             name,
             short_name
           ),
+          license:lisensi!fk_catalog_metadata_license_code (
+            code,
+            name,
+            url,
+            notes
+          ),
+          frequency:freq_upd!fk_catalog_metadata_update_frequency_code (
+            code,
+            name,
+            notes
+          ),
+          catalog_dataset_spatial_coverage (
+            spatial_unit:spatial_units!catalog_dataset_spatial_coverage_spatial_id_fkey (
+              id,
+              name,
+              code,
+              level
+            )
+          ),
           catalog_dataset_tags (
             catalog_tags (
               name
@@ -118,6 +137,20 @@ export const useDatasetDetail = (slug: string) => {
       const distributions = mainResource?.catalog_distributions || [];
       const mainDistribution = distributions[0];
 
+      // Parse spatial coverage
+      const spatialCoverageRaw = (data as any).catalog_dataset_spatial_coverage;
+      const spatial_coverage = Array.isArray(spatialCoverageRaw)
+        ? spatialCoverageRaw
+            .map((item: any) => item.spatial_unit)
+            .filter((unit): unit is any => !!unit)
+            .map((unit: any) => ({
+              id: unit.id,
+              name: unit.name,
+              code: unit.code,
+              level: unit.level,
+            }))
+        : [];
+
       // Calculate download count using the aggregate function
       const { data: downloadCountData, error: downloadCountError } = await supabase
         .rpc('get_dataset_download_count', { dataset_id_param: data.id });
@@ -145,6 +178,7 @@ export const useDatasetDetail = (slug: string) => {
         lastUpdated: new Date(data.updated_at).toLocaleDateString(),
         size: mainDistribution?.byte_size ? `${(mainDistribution.byte_size / 1024 / 1024).toFixed(1)} MB` : "Unknown",
         format: mainDistribution?.media_type || "Various",
+        version: mainDistribution?.version || "1.0.0",
         primaryResource: mainResource
           ? {
               id: mainResource.id,
@@ -172,6 +206,18 @@ export const useDatasetDetail = (slug: string) => {
         temporal_start: data.temporal_start,
         temporal_end: data.temporal_end,
         created_at: data.created_at,
+        license: (data as any).license ? {
+          code: (data as any).license.code,
+          name: (data as any).license.name,
+          url: (data as any).license.url,
+          notes: (data as any).license.notes,
+        } : null,
+        frequency: (data as any).frequency ? {
+          code: (data as any).frequency.code,
+          name: (data as any).frequency.name,
+          notes: (data as any).frequency.notes,
+        } : null,
+        spatial_coverage,
       };
 
       setDataset(transformedDataset);

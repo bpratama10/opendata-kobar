@@ -206,6 +206,8 @@ export const useDatasetDetail = (slug: string) => {
         temporal_start: data.temporal_start,
         temporal_end: data.temporal_end,
         created_at: data.created_at,
+        license_code: data.license_code,
+        custom_id: (data as any).custom_id,
         license: (data as any).license ? {
           code: (data as any).license.code,
           name: (data as any).license.name,

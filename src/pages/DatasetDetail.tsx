@@ -31,9 +31,10 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import { DatasetTable } from "@/components/DatasetTable";
 import { DatasetInfographic } from "@/components/DatasetInfographic";
 import { Footer } from "@/components/Footer";
+import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { useDatasetTableData } from "@/hooks/useDatasetTableData";
-import { format, differenceInYears } from "date-fns";
+import { format, differenceInYears, addDays, addMonths, addYears, isAfter } from "date-fns";
 
 const HoverableOrgText = ({ shortName, fullName }: { shortName: string; fullName: string }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -52,7 +53,7 @@ const DatasetDetail = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [apaCopied, setApaCopied] = useState(false);
   const [ieeeCopied, setIeeeCopied] = useState(false);
 
@@ -130,9 +131,9 @@ const DatasetDetail = () => {
     }));
 
     if (allValues.length > 0) {
-      const highest = allValues.reduce((max, current) => 
+      const highest = allValues.reduce((max, current) =>
         current.value > max.value ? current : max
-      , allValues[0]);
+        , allValues[0]);
 
       cardTwoTitle = "Highest Value";
       cardTwoValue = highest.value;
@@ -199,9 +200,9 @@ const DatasetDetail = () => {
   }, [dataset?.id]);
 
   const generateCSV = (indicators: Array<{ id: string; label: string; unit: string; code: string }>,
-                       dataPoints: Array<{ indicator_id: string; period_start: string; value: number; qualifier: string }>,
-                       columns: Array<{ id: string; column_label: string; period_start: string }>,
-                       datasetTitle: string) => {
+    dataPoints: Array<{ indicator_id: string; period_start: string; value: number; qualifier: string }>,
+    columns: Array<{ id: string; column_label: string; period_start: string }>,
+    datasetTitle: string) => {
     if (indicators.length === 0) return '';
 
     // CSV Header row
@@ -434,13 +435,59 @@ const DatasetDetail = () => {
         const isSameString = createdDatePrefix === dataset.temporal_end;
 
         if (isSameUTC || isSameLocal || isSameString) {
-          return "Masih Berjalan / Ongoing";
+          return "Sekarang";
         }
       }
     } catch (e) {
       console.error("Error parsing temporal dates:", e);
     }
     return dataset.temporal_end;
+  };
+
+  const getExpectedUpdateInfo = (dataset: any) => {
+    const baseDateStr = dataset.created_at || dataset.lastUpdated;
+    const baseDate = new Date(baseDateStr);
+
+    if (isNaN(baseDate.getTime())) {
+      return { isExpired: false, dateDisplay: "—", statusText: "—" };
+    }
+
+    const frequencyCode = dataset.frequency?.code || "TAH";
+    let nextUpdateDue = new Date(baseDate);
+
+    switch (frequencyCode) {
+      case 'HAR': // Harian
+        nextUpdateDue = addDays(baseDate, 1);
+        break;
+      case 'BLN': // Bulanan
+        nextUpdateDue = addMonths(baseDate, 1);
+        break;
+      case 'TRI': // Triwulan
+        nextUpdateDue = addMonths(baseDate, 3);
+        break;
+      case 'SEM': // Semester
+        nextUpdateDue = addMonths(baseDate, 6);
+        break;
+      case 'TAH': // Tahunan
+        nextUpdateDue = addYears(baseDate, 1);
+        break;
+      case 'HUB': // Hubungi Penyedia
+      default:
+        return { isExpired: false, dateDisplay: "Hubungi Penyedia", statusText: "Hubungi Penyedia" };
+    }
+
+    const isExpired = isAfter(new Date(), nextUpdateDue);
+    const formattedDate = nextUpdateDue.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+
+    return {
+      isExpired,
+      dateDisplay: formattedDate,
+      statusText: isExpired ? "Belum Dimutakhirkan" : "Termuktahirkan"
+    };
   };
 
   const handleShare = () => {
@@ -465,11 +512,15 @@ const DatasetDetail = () => {
 
   const citationYear = getCitationYear();
   const organizationName = dataset.organization?.name || "Pemerintah Kabupaten Kotawaringin Barat";
-  const citationVersion = dataset.version || "1.0.0";
   const citationUrl = window.location.href;
+  const currentDate = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
 
-  const apaCitation = `${organizationName}. (${citationYear}). ${dataset.title} (Versi ${citationVersion}) [Data set]. Portal Satu Data Kobar. ${citationUrl}`;
-  const ieeeCitation = `[1] ${organizationName}, "${dataset.title}," Portal Satu Data Kobar, Versi ${citationVersion}, ${citationYear}. [Online]. Available: ${citationUrl}`;
+  const apaCitation = `${organizationName}. (${citationYear}). ${dataset.title}. Portal Satu Data Kobar. Retrieved ${currentDate} from ${citationUrl}`;
+  const ieeeCitation = `${organizationName}, ${citationYear}, "${dataset.title}", Portal Satu Data Kobar. Accessed: ${currentDate}. [Online]. Available: ${citationUrl}`;
 
   const copyToClipboard = (text: string, type: 'APA' | 'IEEE') => {
     navigator.clipboard.writeText(text);
@@ -488,6 +539,7 @@ const DatasetDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header />
       {/* Header */}
       <div className="bg-card border-b">
         <div className="container mx-auto px-6 py-6">
@@ -518,14 +570,14 @@ const DatasetDetail = () => {
 
               <div className="text-muted-foreground text-lg mb-4 flex items-center gap-2 flex-wrap">
                 <span>
-                  {dataset.maintainers && dataset.maintainers.length > 0 
-                    ? dataset.maintainers.join(", ") 
+                  {dataset.maintainers && dataset.maintainers.length > 0
+                    ? dataset.maintainers.join(", ")
                     : "Tidak ada penanggung jawab"}
                 </span>
                 {dataset.organization && (
                   <>
                     <span>-</span>
-                    <HoverableOrgText 
+                    <HoverableOrgText
                       shortName={dataset.organization.short_name || dataset.organization.name}
                       fullName={dataset.organization.name}
                     />
@@ -569,23 +621,39 @@ const DatasetDetail = () => {
           <h2 className="text-2xl font-semibold mb-6">Overview</h2>
           <Tabs defaultValue="description" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="description">Description</TabsTrigger>
+              <TabsTrigger value="description">Deskripsi</TabsTrigger>
               <TabsTrigger value="metadata">Metadata</TabsTrigger>
-              <TabsTrigger value="information">Information</TabsTrigger>
+              <TabsTrigger value="information">Informasi</TabsTrigger>
             </TabsList>
 
             <TabsContent value="description">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Description
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground leading-relaxed">{dataset.description}</p>
-                </CardContent>
-              </Card>
+              <div className={dataset.abstract ? "grid grid-cols-1 md:grid-cols-2 gap-6" : "space-y-6"}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Deskripsi
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground leading-relaxed">{dataset.description || "Tidak ada deskripsi tersedia."}</p>
+                  </CardContent>
+                </Card>
+
+                {dataset.abstract && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="w-5 h-5" />
+                        Abstraksi
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{dataset.abstract}</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="metadata">
@@ -611,6 +679,24 @@ const DatasetDetail = () => {
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm font-medium">
+                          <Hash className="w-4 h-4" />
+                          Kode Registrasi Dataset
+                        </div>
+                        <div>
+                          {dataset.custom_id ? (
+                            <Badge variant="outline" className="font-mono font-bold bg-blue-50 text-blue-700 border-blue-200">
+                              {dataset.custom_id}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-amber-600 bg-amber-50 border-amber-200">
+                              Belum Terdaftar (Draft/Review)
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium">
                           <FileText className="w-4 h-4" />
                           Judul
                         </div>
@@ -632,7 +718,7 @@ const DatasetDetail = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <p className="text-muted-foreground">{dataset.lastUpdated}</p>
-                          {differenceInYears(new Date(), new Date(dataset.lastUpdated)) >= 1 ? (
+                          {getExpectedUpdateInfo(dataset).isExpired ? (
                             <Badge variant="destructive">Belum Dimutakhirkan</Badge>
                           ) : (
                             <Badge style={{ backgroundColor: '#046307', color: 'white' }}>Termuktahirkan</Badge>
@@ -702,9 +788,9 @@ const DatasetDetail = () => {
                           Bahasa
                         </div>
                         <p className="text-muted-foreground">
-                          {dataset.language?.toLowerCase() === 'id' ? 'Bahasa Indonesia (ID)' : 
-                           dataset.language?.toLowerCase() === 'en' ? 'English (EN)' : 
-                           dataset.language || 'Bahasa Indonesia (ID)'}
+                          {dataset.language?.toLowerCase() === 'id' ? 'Bahasa Indonesia (ID)' :
+                            dataset.language?.toLowerCase() === 'en' ? 'English (EN)' :
+                              dataset.language || 'Bahasa Indonesia (ID)'}
                         </p>
                       </div>
 
@@ -716,10 +802,10 @@ const DatasetDetail = () => {
                         <div>
                           {dataset.license ? (
                             dataset.license.url ? (
-                              <a 
-                                href={dataset.license.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
+                              <a
+                                href={dataset.license.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 hover:underline"
                               >
                                 <Badge variant="outline" className="cursor-pointer hover:bg-muted font-mono inline-flex items-center gap-1">
@@ -743,6 +829,16 @@ const DatasetDetail = () => {
                         </div>
                         <p className="text-muted-foreground">
                           {dataset.frequency?.name || "Tidak tersedia"}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <Calendar className="w-4 h-4" />
+                          Update Berikutnya (Estimasi)
+                        </div>
+                        <p className="text-muted-foreground">
+                          {getExpectedUpdateInfo(dataset).dateDisplay}
                         </p>
                       </div>
 
@@ -875,7 +971,7 @@ const DatasetDetail = () => {
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
                         <span className="font-medium">{dataset.lastUpdated}</span>
-                        {differenceInYears(new Date(), new Date(dataset.lastUpdated)) >= 1 ? (
+                        {getExpectedUpdateInfo(dataset).isExpired ? (
                           <Badge variant="destructive">Belum Dimutakhirkan</Badge>
                         ) : (
                           <Badge style={{ backgroundColor: '#046307', color: 'white' }}>Termuktahirkan</Badge>
@@ -887,13 +983,13 @@ const DatasetDetail = () => {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Usage Guidelines</CardTitle>
+                    <CardTitle className="text-lg">Panduan Penggunaan</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm text-muted-foreground">
                     <div className="flex items-start gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
                       <p>
-                        This dataset is licensed under{" "}
+                        Dataset ini dilisensikan di bawah{" "}
                         <span className="font-semibold text-foreground">
                           {dataset.license?.name || dataset.license_code || "Open Data License"}
                         </span>.
@@ -910,15 +1006,19 @@ const DatasetDetail = () => {
                       <>
                         <div className="flex items-start gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                          <p>Attribution required when using this data</p>
+                          <p>Pencantuman atribusi/sumber wajib pada setiap penggunaan data ini</p>
                         </div>
                         <div className="flex items-start gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                          <p>Commercial use is permitted with proper citation</p>
+                          <p>Penggunaan untuk tujuan komersial diizinkan selama ketentuan atribusi di atas dipenuhi.</p>
                         </div>
                         <div className="flex items-start gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                          <p>Data quality and accuracy cannot be guaranteed</p>
+                          <p>Data ini disediakan “apa adanya” tanpa jaminan apa pun, dan kualitas serta keakuratannya tidak dapat dijamin.</p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                          <p>Pengguna disarankan untuk memverifikasi informasi secara independen sebelum menggunakannya.</p>
                         </div>
                       </>
                     )}
@@ -931,7 +1031,7 @@ const DatasetDetail = () => {
                           className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
-                          Read full license terms
+                          Ketentuan Lisensi
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
@@ -1080,7 +1180,7 @@ const DatasetDetail = () => {
           />
         </section>
       </div>
-      
+
       <Footer />
     </div>
   );

@@ -35,6 +35,7 @@ interface Dataset {
   keywords: string[];
   is_priority: boolean;
   unpublish_request_reason?: string;
+  custom_id?: string | null;
 }
 
 export function DatasetManagement() {
@@ -624,12 +625,20 @@ export function DatasetManagement() {
               {paginatedDatasets.map((dataset) => (
                 <TableRow key={dataset.id}>
                   <TableCell>
-                    <div>
-                      <div className="font-medium">
+                    <div className="flex flex-col gap-1.5 py-1">
+                      <div className="font-semibold text-sm text-foreground">
                         {dataset.title}
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {dataset.abstract?.substring(0, 100)}...
+                      <div className="flex items-center">
+                        {dataset.custom_id ? (
+                          <Badge variant="outline" className="font-mono font-bold text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            {dataset.custom_id}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-amber-600 bg-amber-50 border-amber-200">
+                            Belum Terdaftar (Draft/Review)
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </TableCell>

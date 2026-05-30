@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Building, Eye, Edit, Plus, Trash2 } from "lucide-react";
+import { Eye, Edit, Plus, Trash2 } from "lucide-react";
 
 interface Organization {
   id: string;
   name: string;
   short_name: string | null;
+  org_code: string | null;
   org_type: string;
   parent_id: string | null;
   category: string;
@@ -27,6 +28,7 @@ export function OrganizationManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [newOrgName, setNewOrgName] = useState("");
   const [newOrgShortName, setNewOrgShortName] = useState("");
+  const [newOrgCode, setNewOrgCode] = useState("");
   const [newOrgType, setNewOrgType] = useState<string>("");
   const [selectedParentId, setSelectedParentId] = useState<string>("");
   const [newOrgCategory, setNewOrgCategory] = useState<string>("Perangkat Daerah");
@@ -80,12 +82,22 @@ export function OrganizationManagement() {
       return;
     }
 
+    if (newOrgCode.trim() && !/^[0-9]{2}$/.test(newOrgCode.trim())) {
+      toast({
+        title: "Validation Error",
+        description: "Kode Organisasi harus berupa 2 digit angka (00-99)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('org_organizations')
         .insert({
           name: newOrgName.trim(),
           short_name: newOrgShortName.trim() || null,
+          org_code: newOrgCode.trim() || null,
           org_type: newOrgType as "WALIDATA" | "PRODUSEN_DATA" | "KOORDINATOR" | "LAINNYA",
           parent_id: selectedParentId === "none" ? null : selectedParentId || null,
           category: newOrgCategory,
@@ -106,6 +118,7 @@ export function OrganizationManagement() {
       setOrganizations([data, ...organizations]);
       setNewOrgName("");
       setNewOrgShortName("");
+      setNewOrgCode("");
       setNewOrgType("");
       setSelectedParentId("");
       setNewOrgCategory("Perangkat Daerah");
@@ -125,12 +138,22 @@ export function OrganizationManagement() {
   };
 
   const updateOrganization = async (org: Organization) => {
+    if (org.org_code?.trim() && !/^[0-9]{2}$/.test(org.org_code.trim())) {
+      toast({
+        title: "Validation Error",
+        description: "Kode Organisasi harus berupa 2 digit angka (00-99)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('org_organizations')
         .update({
           name: org.name.trim(),
           short_name: org.short_name?.trim() || null,
+          org_code: org.org_code?.trim() || null,
           org_type: org.org_type as "WALIDATA" | "PRODUSEN_DATA" | "KOORDINATOR" | "LAINNYA",
           parent_id: org.parent_id === "none" ? null : org.parent_id || null,
           category: org.category,
@@ -233,7 +256,7 @@ export function OrganizationManagement() {
           <CardTitle>Add New Organization</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             <div>
               <Label htmlFor="org-name">Name *</Label>
               <Input
@@ -250,6 +273,16 @@ export function OrganizationManagement() {
                 placeholder="Enter short name"
                 value={newOrgShortName}
                 onChange={(e) => setNewOrgShortName(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="org-code">Code</Label>
+              <Input
+                id="org-code"
+                placeholder="e.g. 12"
+                maxLength={2}
+                value={newOrgCode}
+                onChange={(e) => setNewOrgCode(e.target.value.replace(/[^0-9]/g, ''))}
               />
             </div>
             <div>
@@ -366,10 +399,19 @@ export function OrganizationManagement() {
                     {editingOrg?.id === org.id ? (
                       <>
                         <td className="p-2">
-                          <Input
-                            value={editingOrg.name}
-                            onChange={(e) => setEditingOrg({ ...editingOrg, name: e.target.value })}
-                          />
+                          <div className="flex gap-2">
+                            <Input
+                              className="w-16 font-mono font-bold text-center"
+                              maxLength={2}
+                              placeholder="Code"
+                              value={editingOrg.org_code || ""}
+                              onChange={(e) => setEditingOrg({ ...editingOrg, org_code: e.target.value.replace(/[^0-9]/g, '') })}
+                            />
+                            <Input
+                              value={editingOrg.name}
+                              onChange={(e) => setEditingOrg({ ...editingOrg, name: e.target.value })}
+                            />
+                          </div>
                         </td>
                         <td className="p-2">
                           <Input
@@ -454,9 +496,17 @@ export function OrganizationManagement() {
                     ) : (
                       <>
                         <td className="p-2">
-                          <div className="flex items-center">
-                            <Building className="w-4 h-4 mr-2" />
-                            {org.name}
+                          <div className="flex items-center gap-2">
+                             {org.org_code ? (
+                               <span className="font-mono font-bold text-xs bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded shrink-0">
+                                 {org.org_code}
+                               </span>
+                             ) : (
+                               <span className="font-mono font-bold text-xs bg-slate-50 text-slate-400 border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
+                                 —
+                               </span>
+                             )}
+                             <span className="font-medium">{org.name}</span>
                           </div>
                         </td>
                         <td className="p-2">

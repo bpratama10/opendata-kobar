@@ -44,6 +44,8 @@ export interface Dataset {
   temporal_end?: string | null;
   created_at?: string | null;
   version?: string;
+  license_code?: string | null;
+  custom_id?: string | null;
   license?: {
     code: string;
     name: string;
@@ -241,6 +243,8 @@ export const useDatasets = () => {
           temporal_start: dataset.temporal_start,
           temporal_end: dataset.temporal_end,
           created_at: dataset.created_at,
+          license_code: dataset.license_code,
+          custom_id: (dataset as any).custom_id,
           organization: dataset.organization ? {
             id: dataset.organization.id,
             name: dataset.organization.name,

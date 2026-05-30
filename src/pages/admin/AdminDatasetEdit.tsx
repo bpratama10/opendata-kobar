@@ -195,7 +195,7 @@ export default function AdminDatasetEdit() {
   };
 
   const fetchLicenses = async () => {
-    const { data, error } = await supabase.from('lisensi').select('code, name');
+    const { data, error } = await supabase.from('lisensi').select('code, name').order('name', { ascending: true });
     if (!error && data) {
       setLicenses(data);
     }
@@ -209,7 +209,7 @@ export default function AdminDatasetEdit() {
   };
 
   const fetchOrganizations = async () => {
-    const { data, error } = await supabase.from('org_organizations').select('id, name, short_name');
+    const { data, error } = await supabase.from('org_organizations').select('id, name, short_name').order('name', { ascending: true });
     if (!error && data) {
       setOrganizations(data);
     }
@@ -230,11 +230,15 @@ export default function AdminDatasetEdit() {
   };
 
   const handleTitleChange = (value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      title: value,
-      slug: generateSlug(value)
-    }));
+    setFormData(prev => {
+      const prevGeneratedSlug = generateSlug(prev.title);
+      const isSlugAutoSync = !prev.slug || prev.slug === prevGeneratedSlug;
+      return {
+        ...prev,
+        title: value,
+        slug: isSlugAutoSync ? generateSlug(value) : prev.slug,
+      };
+    });
   };
 
   const addKeyword = () => {
@@ -458,28 +462,30 @@ export default function AdminDatasetEdit() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Deskripsi</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Deskripsi singkat tentang dataset"
-                rows={3}
-              />
-              {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
-            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="description">Deskripsi</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Deskripsi singkat tentang dataset"
+                  rows={4}
+                />
+                {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="abstract">Abstraksi</Label>
-              <Textarea
-                id="abstract"
-                value={formData.abstract}
-                onChange={(e) => setFormData(prev => ({ ...prev, abstract: e.target.value }))}
-                placeholder="Abstraksi singkat tentang dataset"
-                rows={4}
-              />
-              {errors.abstract && <p className="text-sm text-destructive">{errors.abstract}</p>}
+              <div className="space-y-2">
+                <Label htmlFor="abstract">Abstraksi</Label>
+                <Textarea
+                  id="abstract"
+                  value={formData.abstract}
+                  onChange={(e) => setFormData(prev => ({ ...prev, abstract: e.target.value }))}
+                  placeholder="Abstraksi singkat tentang dataset"
+                  rows={4}
+                />
+                {errors.abstract && <p className="text-sm text-destructive">{errors.abstract}</p>}
+              </div>
             </div>
 
             <div className="space-y-2">

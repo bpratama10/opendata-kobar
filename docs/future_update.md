@@ -127,3 +127,46 @@ Tugas Anda adalah membuat Abstraksi (ringkasan eksekutif) resmi berbasis data ta
 * [ ] **Fase 4: Pengujian & Refinement Prompt**
   * Menguji respons AI terhadap berbagai format tabel dataset daerah (keuangan, demografi, lingkungan).
   * Menyetel prompt lebih presisi agar kepatuhan terhadap aturan batasan tahun $n-1$ konsisten 100%.
+
+---
+
+## 🔄 Rencana Fitur 3: Validasi Pembaruan Data Berkala (Rework Dataset Update Behavior)
+
+Fitur ini bertujuan untuk mengoptimalkan integritas data pada portal dengan melacak keaslian pembaruan dataset. Sistem akan dapat membedakan secara cerdas antara pembaruan informasi umum (metadata) dan pembaruan isi tabel data riil, guna mencegah praktik "compliance hacking" (produsen hanya memperbarui karakter kosong/kecil pada teks deskripsi agar indikator kedaluwarsa menjadi hijau).
+
+Fitur ini menggunakan pendekatan **Proposal 3: Pemberdayaan Walidata (Admin Review Diff)** dengan pelacakan cerdas berbasis database.
+
+### A. Alur Kerja Deteksi Perubahan (Change Detection Workflow)
+
+1. **Pemisahan Tanda Waktu (Separated Timestamps)**:
+   * Menambahkan kolom `metadata_updated_at` (berubah saat form metadata disimpan) dan `data_updated_at` (berubah **hanya** ketika baris baru di-insert/update ke dalam `data_points` atau `data_indicators` melalui trigger database).
+2. **Visualisasi pada Dashboard Tinjauan Walidata (Review Diff)**:
+   * Saat dataset masuk ke status `PENDING_REVIEW`, Walidata (Admin/Diskominfo) akan melihat rangkuman jenis perubahan:
+     * 📝 **Hanya Informasi (Metadata)**: Jika `metadata_updated_at` > `last_published_at` sedangkan `data_updated_at` ≤ `last_published_at`.
+     * 📊 **Pembaruan Data Riil**: Jika `data_updated_at` > `last_published_at` (menampilkan jumlah data poin baru yang dimasukkan).
+
+---
+
+### ⚠️ Potensi Masalah (Concerns) & Solusi Teknis (Mitigations)
+
+Implementasi fitur ini memiliki beberapa tantangan operasional dan teknis yang perlu diantisipasi:
+
+#### 1. Hambatan Alur Birokrasi (Administrative Bottleneck)
+* **Masalah**: Jika setiap perbaikan teks kecil (misal: membetulkan salah ketik di deskripsi, mengubah email kontak, atau memperbaiki tag) harus masuk antrean `PENDING_REVIEW` dan disetujui manual oleh Walidata, produsen akan merasa frustrasi karena proses publikasi yang lambat, dan Walidata akan kelelahan akibat beban kerja admin trivial.
+* **Solusi (Mitigation)**: **Auto-Approve untuk Perubahan Non-Kritis**.
+  * Buat kebijakan otomatisasi: Jika sistem mendeteksi *hanya* teks non-kritis yang diubah (misalnya `tags`, `contact_email`, `description`) sedangkan data tabel tidak disentuh, status dataset tetap `PUBLISHED` secara langsung (Auto-Approve). 
+  * Persetujuan manual `PENDING_REVIEW` hanya diwajibkan untuk:
+    * Publikasi dataset baru pertama kali.
+    * Perubahan tingkat klasifikasi (misal dari TERBATAS menjadi PUBLIC).
+    * Penambahan/modifikasi data tabel utama (`data_points`).
+
+#### 2. Kebocoran Data Sebelum Persetujuan (Staging vs Production Desync)
+* **Masalah**: Saat ini, `catalog_metadata` dan `data_points` bersifat single-row langsung live. Jika produsen mengunggah data baru untuk tahun 2025 tetapi status dataset berubah menjadi `PENDING_REVIEW` (belum disetujui Walidata), maka data poin 2025 tersebut secara teknis sudah masuk ke database. Grafik di halaman publik detail bisa langsung membaca data 2025 tersebut padahal status metadata resminya belum disetujui/di-publish.
+* **Solusi (Mitigation)**: 
+  * **Draft Flag pada Data**: Menambahkan kolom `status` (`DRAFT`/`PUBLISHED`) pada level `data_points` dan `data_indicators`. Ketika produsen mengunggah data baru, statusnya adalah `DRAFT`. Halaman visualisasi publik hanya akan me-load data points yang berstatus `PUBLISHED`. Begitu Walidata menekan tombol "Setujui/Publish", sistem menjalankan transaksi untuk mengubah status seluruh data points baru tersebut menjadi `PUBLISHED`.
+
+#### 3. Kompleksitas Penghitungan Rentang Waktu (Frequency vs Real-world Gaps)
+* **Masalah**: Penghitungan jatuh tempo pembaruan yang terlalu kaku bisa memicu alarm "Kadaluarsa" palsu. Sebagai contoh, data PDRB tahunan daerah seringkali baru selesai diaudit oleh BPS/Inspektorat pada pertengahan tahun berikutnya. Jika sistem langsung menganggap data kedaluwarsa pada 1 Januari, hal itu tidak adil bagi produsen.
+* **Solusi (Mitigation)**: **Tolerance Grace Period (Masa Tenggang)**.
+  * Tambahkan konfigurasi toleransi keterlambatan pada jenis frekuensi pembaruan. Contoh: Frekuensi Tahunan (`TAH`) diberikan masa tenggang 6 bulan. Sistem baru akan menandai dataset "Kadaluarsa" jika data tahun baru belum diunggah setelah melewati tanggal 1 Juli di tahun berikutnya.
+

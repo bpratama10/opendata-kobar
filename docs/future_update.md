@@ -256,3 +256,66 @@ ALTER TABLE public.data_points
   * Menampilkan statistik kategori tertinggi (misalnya: *"Agama mayoritas pada umur 1-5 tahun adalah Islam"*).
   * Merender grafik batang (*Bar Chart* / *Stacked Bar Chart*) yang lebih cocok untuk data komparatif.
 
+---
+
+### D. Pemilih Periode Kondisional & Optimasi Label YoY (Conditional Period Picker & YoY Label Optimization)
+
+Rancangan ini bertujuan untuk mempermudah operator saat mendefinisikan kolom waktu (*Time Periods*) dan menjamin keakuratan visual kartu ringkasan YoY di halaman detail pada format data non-tahunan.
+
+#### 1. Input Pemilih Periode Kondisional (Conditional Picker UI)
+Di dalam modal tambah periode (`PeriodsManager.tsx`), input tanggal kalender lengkap (`type="date"`) akan digantikan oleh dropdown kondisional berdasarkan pilihan `Time Grain` guna menghilangkan keharusan mencari tanggal manual di kalender:
+*   **Jika Grain = `YEAR` (Tahunan)**:
+    *   **UI**: Dropdown pilihan Tahun (misal: `2026`).
+    *   **Ke Database (`period_start`)**: Otomatis disimpan sebagai `${Year}-01-01`.
+    *   **Label Kolom**: `"2026"`.
+*   **Jika Grain = `MONTH` (Bulanan)**:
+    *   **UI**: Dropdown pilihan Bulan (Jan - Des) + dropdown Tahun.
+    *   **Ke Database (`period_start`)**: Otomatis disimpan sebagai `${Year}-${Month}-01`.
+    *   **Label Kolom**: `"May 2026"` atau `"Mei 2026"`.
+*   **Jika Grain = `QUARTER` (Kuartalan)**:
+    *   **UI**: Dropdown pilihan Kuartal (Q1 - Q4) + dropdown Tahun.
+    *   **Ke Database (`period_start`)**: Dipetakan otomatis ke awal bulan kuartal tersebut (Q1: `01-01`, Q2: `04-01`, Q3: `07-01`, Q4: `10-01`).
+    *   **Label Kolom**: `"Q2 2026"`.
+*   **Jika Grain = `SEMESTER` (Semesteran)**:
+    *   **UI**: Dropdown pilihan Semester (S1 - S2) + dropdown Tahun.
+    *   **Ke Database (`period_start`)**: Dipetakan ke (S1: `01-01`, S2: `07-01`).
+    *   **Label Kolom**: `"S1 2026"`.
+
+#### 2. Optimasi Label Deskripsi YoY (`DatasetDetail.tsx`)
+*   **Masalah Saat Ini**: Kode kalkulasi YoY pada halaman publik mengambil tahun secara paksa dari format tanggal database menggunakan `format(..., "yyyy")`. Ini memicu *visual glitch* pada data kuartalan/bulanan di mana label deskripsinya memunculkan tulisan `"from 2024 to 2024"`.
+*   **Solusi Redesign**: Mengubah kode agar memuat teks label dari properti `column_label` secara langsung pada koleksi `columns` (misal: `columns[columns.length - 2].column_label`), bukan melakukan kalkulasi tanggal ulang.
+*   **Hasil Akhir**: Teks deskripsi kartu YoY/PoP otomatis tampil dinamis dan presisi sempurna untuk kategori waktu apa pun, seperti:
+    *   *"from Q1 2024 to Q2 2024"* (Kuartalan)
+    *   *"from Jan 2024 to Feb 2024"* (Bulanan)
+    *   *"from S1 2024 to S2 2024"* (Semesteran)
+
+---
+
+## 📊 Rencana Redesign: Visualisasi Data Lanjut & Dashboard Analitik Premium (Advanced Data Visualization & Premium Analytical Dashboard)
+
+Rencana ini bertujuan untuk meningkatkan kelas portal dari sekadar penyedia file unduhan menjadi **Dashboard Keputusan Kebijakan Daerah (Policy Decision Dashboard)** melalui implementasi metrik analitis tingkat lanjut dan visualisasi data yang kaya (*rich data visualizations*) tanpa bergantung pada sistem kecerdasan buatan (AI).
+
+### 1. Metrik Kontrol Utama & Wawasan Jangka Pendek (Analytical KPIs)
+Menyajikan kartu ringkasan eksekutif instan di atas visualisasi data untuk memberikan gambaran kesehatan dataset:
+*   **Laju Pertumbuhan Jangka Panjang (CAGR)**: Menghitung laju pertumbuhan geometris rata-rata tahunan sejak periode awal hingga akhir (menghindari anomali fluktuasi jangka pendek).
+*   **Pencapaian Ekstrim (Peak & Trough Years)**: Menyorot tahun dan nilai tertinggi (*Max*) serta terendah (*Min*) sepanjang riwayat dataset secara otomatis.
+*   **Baseline & Volatilitas (Median & Standar Deviasi)**: Memberikan info nilai tengah data untuk menyaring pengaruh pencilan (*outliers*) serta tingkat kestabilan data (volatilitas).
+
+### 2. Garis Tren Prediktif & Proyeksi 2026–2027 (Predictive Trendline)
+*   **Konsep**: Menambahkan perpanjangan garis tren putus-putus (*dashed line*) di ujung grafik garis historis untuk memvisualisasikan proyeksi statistik 1–2 tahun ke depan secara otomatis menggunakan pemodelan matematika regresi linear sederhana pada sisi frontend.
+*   **Manfaat**: Membantu kepala dinas dan analis perencanaan daerah dalam memprediksi arah tren sosial-ekonomi Kobar (misalnya memproyeksikan laju pengangguran atau populasi) sebelum data riil tahun berjalan dipublikasikan.
+
+### 3. Glassmorphism Stacked Area Chart (Kontribusi Indikator)
+*   **Konsep**: Mengintegrasikan visualisasi `AreaChart` bertumpuk yang memiliki gradien warna semi-transparan dengan gaya estetik *glassmorphism* modern.
+*   **Manfaat**: Menghilangkan masalah grafik garis yang ruwet dan saling bersilangan (*spaghetti chart*) ketika menampilkan banyak indikator sektoral (misalnya: data kontribusi sektor perikanan per kecamatan terhadap total kabupaten seiring waktu).
+
+### 4. Small Multiples / Trellis Chart (Multi-Skala Indikator)
+*   **Konsep**: Seri baris grafik mini terpisah yang sejajar untuk masing-masing indikator.
+*   **Manfaat**: Menghilangkan distorsi visual ketika menampilkan beberapa indikator yang memiliki skala sumbu Y yang berbeda jauh di dalam satu chart tunggal (contoh: menggabungkan indikator PDRB dalam skala Triliun Rupiah dengan tingkat Inflasi dalam skala Persen, di mana garis persen akan terlihat benar-benar rata di dasar sumbu jika digabungkan).
+
+### 5. Peta Spasial Tematik Kobar (Thematic Choropleth Map)
+*   **Konsep**: Widget peta tematik interaktif Kabupaten Kotawaringin Barat yang terbagi atas batas wilayah administrasi kecamatan.
+*   **Manfaat**: Memvisualisasikan data yang memiliki atribut regional secara geografis (contoh: memetakan tingkat kemiskinan atau pengangguran per kecamatan tahun 2025 menggunakan gradien saturasi warna dinamis dari terang ke gelap).
+
+
+

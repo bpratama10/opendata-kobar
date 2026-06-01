@@ -170,3 +170,89 @@ Implementasi fitur ini memiliki beberapa tantangan operasional dan teknis yang p
 * **Solusi (Mitigation)**: **Tolerance Grace Period (Masa Tenggang)**.
   * Tambahkan konfigurasi toleransi keterlambatan pada jenis frekuensi pembaruan. Contoh: Frekuensi Tahunan (`TAH`) diberikan masa tenggang 6 bulan. Sistem baru akan menandai dataset "Kadaluarsa" jika data tahun baru belum diunggah setelah melewati tanggal 1 Juli di tahun berikutnya.
 
+---
+
+## 📐 Rencana Rencana Redesign: Tabel Data Polimorfik (Polymorphic / Configuration-Driven Data Tables)
+
+Fitur ini bertujuan untuk mendukung penyajian data non-temporal/tabulasi silang (*cross-tabulation*) di portal satu data. Saat ini, tabel pratinjau data dinamis terkunci pada dimensi waktu karena adanya batasan data berjenis `DATE` pada database (`period_start`). 
+
+Dengan rencana redesign ini, platform dapat menyajikan berbagai jenis data (seperti demografi Agama vs Kelompok Umur, Jenis Kelamin vs Kecamatan) secara dinamis menggunakan pendekatan berbasis konfigurasi (*configuration-driven*).
+
+### A. Konseptual Polimorfik via `schema_json` (JSONB)
+Untuk menghindari pembuatan tabel database baru yang rumit, kita memanfaatkan kolom `schema_json` berjenis `JSONB` pada tabel `catalog_resources`. Kolom ini akan menyimpan template rendering dan aturan visualisasi yang disetujui saat Admin membuat tabel data.
+
+#### 📈 Templat 1: Deret Waktu (`TEMPORAL` / Time-Series)
+Digunakan untuk data berkala tahunan/bulanan. Fitur analisis otomatis seperti grafik garis (*Line Chart*) dan statistik YoY (*Year-over-Year*) akan aktif secara otomatis.
+```json
+{
+  "table_type": "TEMPORAL",
+  "features": {
+    "yoy_calculation": true,
+    "trend_chart": "line",
+    "expected_update_check": true
+  },
+  "dimensions": {
+    "row_header": "Indikator",
+    "column_type": "DATE",
+    "column_header": "Tahun"
+  }
+}
+```
+
+#### 📊 Templat 2: Matriks Kustom (`CUSTOM_MATRIX` / Cross-Tabulation)
+Digunakan untuk perbandingan kategori statis atau tabulasi silang (seperti Kelompok Umur vs Agama). Fitur YoY akan dinonaktifkan, dan visualisasi akan dialihkan ke grafik batang (*Bar Chart*) per kelompok data.
+```json
+{
+  "table_type": "CUSTOM_MATRIX",
+  "features": {
+    "yoy_calculation": false,
+    "trend_chart": "bar",
+    "expected_update_check": false
+  },
+  "dimensions": {
+    "row_header": "Agama",
+    "column_type": "TEXT",
+    "column_header": "Kelompok Umur"
+  }
+}
+```
+
+---
+
+### B. Usulan Redesign Skema Database (SQL)
+Agar tabel data di database bersifat dinamis dan dapat menampung kolom berbasis teks (misalnya kolom `"1-5 tahun"`, `"6-10 tahun"`), kita perlu melakukan restrukturisasi relasi SQL yang semula terikat pada tipe data `DATE`.
+
+```sql
+-- 1. Mengubah kolom period_start di tabel kolom agar bisa bernilai NULL (karena tipe non-temporal tidak memiliki tanggal mulai),
+--    dan menambahkan kolom column_key untuk menyimpan kode teks unik
+ALTER TABLE public.data_table_view_columns 
+  ALTER COLUMN period_start DROP NOT NULL,
+  ADD COLUMN column_key VARCHAR(50);
+
+-- 2. Menambahkan column_id di tabel data_points agar sel data dinilai berdasarkan relasi 
+--    Baris (Indicator ID) dan Kolom (Column ID) secara generik, bukan berdasarkan tanggal.
+ALTER TABLE public.data_points
+  ADD COLUMN column_id UUID REFERENCES public.data_table_view_columns(id) ON DELETE CASCADE;
+```
+
+---
+
+### C. Alur Kerja Implementasi Sistem (Workflow)
+
+#### 1. Panel Admin (Pengisian Data)
+* Saat Admin/Produsen menambahkan data tabel, sistem menyediakan pilihan **Template Tabel**:
+  * `[ ] Deret Waktu (Time-Series)` -> Kolom dibatasi hanya berupa tanggal/tahun.
+  * `[ ] Matriks Kustom (Custom Matrix)` -> Admin dibebaskan menginput teks kustom untuk nama kolom.
+* Data konfigurasi ini otomatis disimpan ke `catalog_resources.schema_json`.
+
+#### 2. Portal Publik (Halaman Detail Dataset)
+* Komponen React (`DatasetTable.tsx` dan `DatasetDetail.tsx`) akan membaca properti `table_type` dari `schema_json`.
+* **Jika `TEMPORAL`**:
+  * Menghitung nilai YoY dari waktu ke waktu.
+  * Menampilkan kartu ringkasan YoY (YoY Summary Card).
+  * Merender grafik garis (*Line Chart*) untuk tren berkala.
+* **Jika `CUSTOM_MATRIX`**:
+  * Menyembunyikan komponen analisis YoY.
+  * Menampilkan statistik kategori tertinggi (misalnya: *"Agama mayoritas pada umur 1-5 tahun adalah Islam"*).
+  * Merender grafik batang (*Bar Chart* / *Stacked Bar Chart*) yang lebih cocok untuk data komparatif.
+

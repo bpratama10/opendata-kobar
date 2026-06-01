@@ -57,6 +57,21 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
     setHasChanges(false);
   }, [indicators, periods, dataPoints, isSaving, indicatorsLoading, periodsLoading, dataPointsLoading]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = "Anda memiliki perubahan data yang belum disimpan. Yakin ingin meninggalkan halaman?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [hasChanges]);
+
   const activeIndicators = indicators.filter(ind => ind.is_active);
   const visiblePeriods = periods.filter(per => !per.is_hidden);
 
@@ -251,12 +266,35 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
                 <TableRow>
                   <TableHead className="min-w-[200px] sticky left-0 bg-background">Indicator</TableHead>
                   {visiblePeriods.map(period => (
-                    <TableHead key={period.id} className="text-center min-w-[120px]">
-                      {period.column_label}
-                      <br />
-                      <Badge variant="outline" className="text-xs">
+                    <TableHead key={period.id} className="text-center min-w-[130px]">
+                      <div className="font-semibold">{period.column_label}</div>
+                      <Badge variant="outline" className="text-[10px] scale-90 mb-1">
                         {period.time_grain}
                       </Badge>
+                      <br />
+                      <Select
+                        value=""
+                        onValueChange={(value: 'OFFICIAL' | 'PRELIM' | 'EST' | 'NA') => {
+                          if (!value) return;
+                          activeIndicators.forEach(indicator => {
+                            updateCellQualifier(indicator.id, period.period_start, value);
+                          });
+                          toast({
+                            title: "Kualifikasi Kolom Diperbarui",
+                            description: `Kualifikasi kolom ${period.column_label} disetel ke ${value}`,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="text-[10px] h-6 py-0 px-1 mt-1 border-dotted bg-muted hover:bg-accent w-[90px] mx-auto">
+                          <SelectValue placeholder="Set Kolom..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="OFFICIAL">🟢 Resmi</SelectItem>
+                          <SelectItem value="PRELIM">🟡 Sementara</SelectItem>
+                          <SelectItem value="EST">🔵 Estimasi</SelectItem>
+                          <SelectItem value="NA">🔴 N/A</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </TableHead>
                   ))}
                 </TableRow>
@@ -279,7 +317,7 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
 
                       return (
                         <TableCell key={period.id} className="p-2">
-                          <div className="space-y-1">
+                          <div className="flex items-center gap-1">
                             <Input
                               type="number"
                               step="any"
@@ -289,7 +327,7 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
                                 updateCellValue(indicator.id, period.period_start, value);
                               }}
                               placeholder="—"
-                              className="text-center text-sm h-8"
+                              className="text-center text-sm h-8 font-mono flex-1 min-w-[70px]"
                             />
                             <Select
                               value={cellData.qualifier}
@@ -297,14 +335,18 @@ export function DataEntryGrid({ resourceId }: DataEntryGridProps) {
                                 updateCellQualifier(indicator.id, period.period_start, value)
                               }
                             >
-                              <SelectTrigger className="text-xs h-6">
-                                <SelectValue />
+                              <SelectTrigger className="w-8 h-8 p-0 flex items-center justify-center border-none shadow-none bg-transparent hover:bg-accent shrink-0">
+                                <span className="text-sm">
+                                  {cellData.qualifier === 'OFFICIAL' ? '🟢' :
+                                   cellData.qualifier === 'PRELIM' ? '🟡' :
+                                   cellData.qualifier === 'EST' ? '🔵' : '🔴'}
+                                </span>
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="OFFICIAL">Resmi / Official</SelectItem>
-                                <SelectItem value="PRELIM">Angka Sementara / Preliminary</SelectItem>
-                                <SelectItem value="EST">Estimasi / Estimate</SelectItem>
-                                <SelectItem value="NA">Tidak Tersedia / Not Available</SelectItem>
+                                <SelectItem value="OFFICIAL">🟢 Resmi / Official</SelectItem>
+                                <SelectItem value="PRELIM">🟡 Angka Sementara / Preliminary</SelectItem>
+                                <SelectItem value="EST">🔵 Estimasi / Estimate</SelectItem>
+                                <SelectItem value="NA">🔴 Tidak Tersedia / Not Available</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

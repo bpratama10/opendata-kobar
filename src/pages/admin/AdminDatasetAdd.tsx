@@ -161,7 +161,7 @@ export default function AdminDatasetAdd() {
     if (data?.org_id) {
       console.log("✅ Found org_id:", data.org_id);
       setUserOrgId(data.org_id);
-      
+
       // Auto-assign org immediately for all non-admin/walidata users
       setFormData((prev) => ({ ...prev, selected_org_id: data.org_id }));
       console.log("🔒 Auto-assigned org_id to form");
@@ -264,9 +264,9 @@ export default function AdminDatasetAdd() {
       // Parse maintainers from comma-separated string to array
       const maintainersArray = maintainers
         ? maintainers
-            .split(",")
-            .map((m) => m.trim())
-            .filter((m) => m.length > 0)
+          .split(",")
+          .map((m) => m.trim())
+          .filter((m) => m.length > 0)
         : [];
 
       const { data: datasetData, error: datasetError } = await supabase
@@ -487,16 +487,16 @@ export default function AdminDatasetAdd() {
                         <SelectValue placeholder="Pilih organisasi">
                           {formData.selected_org_id && organizations.find((org) => org.id === formData.selected_org_id)
                             ? organizations.find((org) => org.id === formData.selected_org_id)?.short_name ||
-                              organizations.find((org) => org.id === formData.selected_org_id)?.name
+                            organizations.find((org) => org.id === formData.selected_org_id)?.name
                             : "Pilih organisasi"}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {(() => {
-                          const filteredOrgs = hasAdminOrWalidata 
-                            ? organizations 
+                          const filteredOrgs = hasAdminOrWalidata
+                            ? organizations
                             : organizations.filter(org => org.id === userOrgId);
-                          
+
                           return filteredOrgs.map((org) => (
                             <SelectItem key={org.id} value={org.id}>
                               {org.short_name || org.name}
@@ -737,7 +737,7 @@ export default function AdminDatasetAdd() {
                       {isOngoing ? (
                         <span>📅 Ubah ke Tanggal Spesifik</span>
                       ) : (
-                        <span>✨ Tandai sebagai "Masih Berjalan (Sekarang)"</span>
+                        <span>🔗 Tandai sebagai "Masih Berjalan"</span>
                       )}
                     </Button>
                   </div>

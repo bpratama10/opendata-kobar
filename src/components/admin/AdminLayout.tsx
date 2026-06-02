@@ -124,7 +124,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 <span>✉️ satudata@kotawaringinbaratkab.go.id</span>
               </div>
               <div className="text-center md:text-right">
-                Built with ❤️ by Aplikasi Informatika
+                Built with ❤️ by Bidang Statistik
               </div>
             </div>
           </div>
@@ -172,7 +172,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <span>✉️ satudata@kotawaringinbaratkab.go.id</span>
             </div>
             <div className="text-center">
-              Built with ❤️ by Aplikasi Informatika
+              Built with ❤️ by Bidang Statistik
             </div>
           </div>
         </div>

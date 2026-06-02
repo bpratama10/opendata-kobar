@@ -445,7 +445,7 @@ const DatasetDetail = () => {
   };
 
   const getExpectedUpdateInfo = (dataset: any) => {
-    const baseDateStr = dataset.created_at || dataset.lastUpdated;
+    const baseDateStr = dataset.data_updated_at || dataset.created_at || dataset.lastUpdated;
     const baseDate = new Date(baseDateStr);
 
     if (isNaN(baseDate.getTime())) {
@@ -474,6 +474,12 @@ const DatasetDetail = () => {
       case 'HUB': // Hubungi Penyedia
       default:
         return { isExpired: false, dateDisplay: "Hubungi Penyedia", statusText: "Hubungi Penyedia" };
+    }
+
+    // Apply Tolerance Grace Period (Masa Tenggang) from Update Frequency configuration
+    const graceMonths = dataset.frequency?.grace_period_months || 0;
+    if (graceMonths > 0) {
+      nextUpdateDue = addMonths(nextUpdateDue, graceMonths);
     }
 
     const isExpired = isAfter(new Date(), nextUpdateDue);

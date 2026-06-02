@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Lock, Unlock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { LicenseExplanationDialog } from "@/components/admin/LicenseExplanationDialog";
 import { z } from "zod";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 const datasetSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(255, "Title must be less than 255 characters"),
@@ -67,6 +69,9 @@ export default function AdminDatasetEdit() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [userOrgId, setUserOrgId] = useState<string | null>(null);
+  const [isSlugLocked, setIsSlugLocked] = useState(true);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [isOngoing, setIsOngoing] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     slug: "",
@@ -87,11 +92,14 @@ export default function AdminDatasetEdit() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [keywordInput, setKeywordInput] = useState("");
 
+  const hasAdminOrWalidata = orgRoles.some((role) => ["ADMIN", "WALIDATA"].includes(role.code));
+
   useEffect(() => {
     fetchLicenses();
     fetchUpdateFrequencies();
     fetchOrganizations();
     fetchThemes();
+    fetchTags();
   }, []);
 
   useEffect(() => {
@@ -165,6 +173,11 @@ export default function AdminDatasetEdit() {
         : [];
       const maintainersString = maintainersArray.join(', ');
 
+      // Check if temporal_end matches created_at prefix or is ongoing
+      const createdDatePrefix = dataset.created_at ? dataset.created_at.split('T')[0] : "";
+      const isOngoingVal = dataset.temporal_end === createdDatePrefix || dataset.temporal_end === new Date().toISOString().split('T')[0];
+      setIsOngoing(isOngoingVal);
+
       setFormData({
         title: dataset.title || "",
         slug: dataset.slug || "",
@@ -219,6 +232,13 @@ export default function AdminDatasetEdit() {
     const { data, error } = await supabase.from('catalog_themes').select('id, code, name').order('name');
     if (!error && data) {
       setThemes(data);
+    }
+  };
+
+  const fetchTags = async () => {
+    const { data, error } = await supabase.from('catalog_tags').select('name').order('name');
+    if (!error && data) {
+      setAvailableTags(data.map(t => t.name));
     }
   };
 
@@ -425,303 +445,392 @@ export default function AdminDatasetEdit() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="title">
-                  Title *
-                  {isPriorityDataset && (
-                    <span className="ml-2 text-xs text-muted-foreground">(Locked - Priority Data)</span>
-                  )}
-                </Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter dataset title"
-                  disabled={isPriorityDataset}
-                  className={isPriorityDataset ? "bg-muted cursor-not-allowed" : ""}
-                />
-                {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="slug">
-                  Slug *
-                  {isPriorityDataset && (
-                    <span className="ml-2 text-xs text-muted-foreground">(Locked - Priority Data)</span>
-                  )}
-                </Label>
-                <Input
-                  id="slug"
-                  value={formData.slug}
-                  onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
-                  placeholder="dataset-slug"
-                  disabled={isPriorityDataset}
-                  className={isPriorityDataset ? "bg-muted cursor-not-allowed" : ""}
-                />
-                {errors.slug && <p className="text-sm text-destructive">{errors.slug}</p>}
-              </div>
-            </div>
+            <Tabs defaultValue="basic" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="basic">1. Informasi Dasar</TabsTrigger>
+                <TabsTrigger value="taxonomy">2. Taksonomi & Klasifikasi</TabsTrigger>
+                <TabsTrigger value="access">3. Pengaturan & Akses</TabsTrigger>
+              </TabsList>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="description">Deskripsi</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Deskripsi singkat tentang dataset"
-                  rows={4}
-                />
-                {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="abstract">Abstraksi</Label>
-                <Textarea
-                  id="abstract"
-                  value={formData.abstract}
-                  onChange={(e) => setFormData(prev => ({ ...prev, abstract: e.target.value }))}
-                  placeholder="Abstraksi singkat tentang dataset"
-                  rows={4}
-                />
-                {errors.abstract && <p className="text-sm text-destructive">{errors.abstract}</p>}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="maintainers">Penanggung Jawab Data</Label>
-              <Input
-                id="maintainers"
-                value={formData.maintainers}
-                onChange={(e) => setFormData(prev => ({ ...prev, maintainers: e.target.value }))}
-                placeholder="Masukkan nama bidang atau unit penanggung jawab, pisahkan dengan koma"
-              />
-              <p className="text-xs text-muted-foreground">
-                Contoh: Bidang Statistik, Bidang TI, Bidang Kominfo
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="contact_email">Email Kontak</Label>
-                <Input
-                  id="contact_email"
-                  type="email"
-                  value={formData.contact_email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, contact_email: e.target.value }))}
-                  placeholder="contact@example.com"
-                />
-                {errors.contact_email && <p className="text-sm text-destructive">{errors.contact_email}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="language">Bahasa *</Label>
-                <Select
-                  value={formData.language}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, language: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih bahasa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="id">Indonesia</SelectItem>
-                    <SelectItem value="en">Inggris</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.language && <p className="text-sm text-destructive">{errors.language}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="organization">Organisasi *</Label>
-                <Select
-                  value={formData.selected_org_id}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, selected_org_id: value }))}
-                  disabled={!isAdmin && !isWalidata}
-                >
-                  <SelectTrigger className={!isAdmin && !isWalidata ? 'bg-muted cursor-not-allowed' : ''}>
-                    <SelectValue placeholder="Pilih organisasi">
-                      {formData.selected_org_id && organizations.find((org) => org.id === formData.selected_org_id)
-                        ? organizations.find((org) => org.id === formData.selected_org_id)?.short_name ||
-                        organizations.find((org) => org.id === formData.selected_org_id)?.name
-                        : "Pilih organisasi"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizations.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.short_name || org.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {isProdusen && formData.selected_org_id && (
-                  <p className="text-xs text-muted-foreground">
-                    Produsen tidak dapat mengubah organisasi
-                  </p>
-                )}
-                {isKoordinator && formData.selected_org_id && (
-                  <p className="text-xs text-muted-foreground">
-                    Koordinator hanya dapat melihat informasi organisasi
-                  </p>
-                )}
-                {(isAdmin || isWalidata) && formData.selected_org_id && (
-                  <p className="text-xs text-muted-foreground">
-                    Anda dapat mengubah organisasi dataset
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="classification">Klasifikasi *</Label>
-                <Select
-                  value={formData.classification_code}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, classification_code: value as "PUBLIC" | "TERBATAS" }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih klasifikasi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PUBLIC">Publik</SelectItem>
-                    <SelectItem value="TERBATAS">Terbatas</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.classification_code && <p className="text-sm text-destructive">{errors.classification_code}</p>}
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="license">Lisensi *</Label>
-                  <LicenseExplanationDialog />
-                </div>
-                <Select
-                  value={formData.license_code}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, license_code: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih lisensi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {licenses.map((license) => (
-                      <SelectItem key={license.code} value={license.code}>
-                        {license.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.license_code && <p className="text-sm text-destructive">{errors.license_code}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="frequency">Frekuensi Update *</Label>
-                <Select
-                  value={formData.update_frequency_code}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, update_frequency_code: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih frekuensi update" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {frequencies.map((freq) => (
-                      <SelectItem key={freq.code} value={freq.code}>
-                        {freq.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.update_frequency_code && <p className="text-sm text-destructive">{errors.update_frequency_code}</p>}
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="temporal_start">Tanggal Mulai Berlaku</Label>
-                <Input
-                  id="temporal_start"
-                  type="date"
-                  value={formData.temporal_start}
-                  onChange={(e) => setFormData(prev => ({ ...prev, temporal_start: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="temporal_end">Tanggal Berakhir Berlaku</Label>
-                <Input
-                  id="temporal_end"
-                  type="date"
-                  value={formData.temporal_end}
-                  onChange={(e) => setFormData(prev => ({ ...prev, temporal_end: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="keywords">Kata Kunci</Label>
-              <div className="flex space-x-2">
-                <Input
-                  value={keywordInput}
-                  onChange={(e) => setKeywordInput(e.target.value)}
-                  placeholder="Tambah kata kunci"
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                />
-                <Button type="button" onClick={addKeyword} variant="outline">
-                  Tambah
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {formData.keywords.map((keyword, index) => (
-                  <span
-                    key={index}
-                    className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm cursor-pointer"
-                    onClick={() => removeKeyword(keyword)}
-                  >
-                    {keyword} ×
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tema</Label>
-              <div className="border rounded-md p-4 space-y-2 max-h-64 overflow-y-auto">
-                {themes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Tidak ada tema yang tersedia</p>
-                ) : (
-                  themes.map((theme) => (
-                    <div key={theme.id} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={`theme-${theme.id}`}
-                        checked={formData.selected_theme_ids.includes(theme.id)}
-                        onChange={() => toggleTheme(theme.id)}
-                        className="rounded border-gray-300"
+              <TabsContent value="basic" className="space-y-6 pt-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">
+                      Title *
+                      {isPriorityDataset && (
+                        <span className="ml-2 text-xs text-muted-foreground">(Locked - Priority Data)</span>
+                      )}
+                    </Label>
+                    <Input
+                      id="title"
+                      value={formData.title}
+                      onChange={(e) => handleTitleChange(e.target.value)}
+                      placeholder="Enter dataset title"
+                      disabled={isPriorityDataset}
+                      className={isPriorityDataset ? "bg-muted cursor-not-allowed" : ""}
+                    />
+                    {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="slug">
+                      Slug *
+                      {isPriorityDataset && (
+                        <span className="ml-2 text-xs text-muted-foreground">(Locked - Priority Data)</span>
+                      )}
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="slug"
+                        value={formData.slug}
+                        onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                        placeholder="dataset-slug"
+                        disabled={isPriorityDataset || isSlugLocked}
+                        className={(isPriorityDataset || isSlugLocked) ? "bg-muted cursor-not-allowed flex-1" : "flex-1"}
                       />
-                      <label
-                        htmlFor={`theme-${theme.id}`}
-                        className="text-sm cursor-pointer flex-1"
-                      >
-                        {theme.name} <span className="text-muted-foreground">({theme.code})</span>
-                      </label>
+                      {!isPriorityDataset && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            const newLocked = !isSlugLocked;
+                            setIsSlugLocked(newLocked);
+                            if (newLocked) {
+                              setFormData(prev => ({ ...prev, slug: generateSlug(prev.title) }));
+                            }
+                          }}
+                          title={isSlugLocked ? "Buka Kunci Slug (Edit Manual)" : "Kunci Slug dengan Judul"}
+                        >
+                          {isSlugLocked ? <Lock className="w-4 h-4 text-muted-foreground" /> : <Unlock className="w-4 h-4 text-primary" />}
+                        </Button>
+                      )}
                     </div>
-                  ))
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {formData.selected_theme_ids.map((themeId) => {
-                  const theme = themes.find(t => t.id === themeId);
-                  return theme ? (
-                    <span
-                      key={themeId}
-                      className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm cursor-pointer"
-                      onClick={() => toggleTheme(themeId)}
-                    >
-                      {theme.name} ×
-                    </span>
-                  ) : null;
-                })}
-              </div>
-            </div>
+                    {errors.slug && <p className="text-sm text-destructive">{errors.slug}</p>}
+                  </div>
+                </div>
 
-            <div className="flex justify-end space-x-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Deskripsi</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Deskripsi singkat tentang dataset"
+                      rows={4}
+                    />
+                    {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="abstract">Abstraksi</Label>
+                    <Textarea
+                      id="abstract"
+                      value={formData.abstract}
+                      onChange={(e) => setFormData(prev => ({ ...prev, abstract: e.target.value }))}
+                      placeholder="Abstraksi singkat tentang dataset"
+                      rows={4}
+                    />
+                    {errors.abstract && <p className="text-sm text-destructive">{errors.abstract}</p>}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="maintainers">Penanggung Jawab Data</Label>
+                  <Input
+                    id="maintainers"
+                    value={formData.maintainers}
+                    onChange={(e) => setFormData(prev => ({ ...prev, maintainers: e.target.value }))}
+                    placeholder="Masukkan nama bidang atau unit penanggung jawab, pisahkan dengan koma"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Contoh: Bidang Statistik, Bidang TI, Bidang Kominfo
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="taxonomy" className="space-y-6 pt-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="organization">Organisasi *</Label>
+                    <Select
+                      value={formData.selected_org_id}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, selected_org_id: value }))}
+                      disabled={!isAdmin && !isWalidata}
+                    >
+                      <SelectTrigger className={!isAdmin && !isWalidata ? 'bg-muted cursor-not-allowed' : ''}>
+                        <SelectValue placeholder="Pilih organisasi">
+                          {formData.selected_org_id && organizations.find((org) => org.id === formData.selected_org_id)
+                            ? organizations.find((org) => org.id === formData.selected_org_id)?.short_name ||
+                            organizations.find((org) => org.id === formData.selected_org_id)?.name
+                            : "Pilih organisasi"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(() => {
+                          const filteredOrgs = hasAdminOrWalidata
+                            ? organizations
+                            : organizations.filter(org => org.id === userOrgId || org.id === formData.selected_org_id);
+
+                          return filteredOrgs.map((org) => (
+                            <SelectItem key={org.id} value={org.id}>
+                              {org.short_name || org.name}
+                            </SelectItem>
+                          ));
+                        })()}
+                      </SelectContent>
+                    </Select>
+                    {isProdusen && formData.selected_org_id && (
+                      <p className="text-xs text-muted-foreground">
+                        Produsen tidak dapat mengubah organisasi
+                      </p>
+                    )}
+                    {isKoordinator && formData.selected_org_id && (
+                      <p className="text-xs text-muted-foreground">
+                        Koordinator hanya dapat melihat informasi organisasi
+                      </p>
+                    )}
+                    {(isAdmin || isWalidata) && formData.selected_org_id && (
+                      <p className="text-xs text-muted-foreground">
+                        Anda dapat mengubah organisasi dataset
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="keywords">Kata Kunci</Label>
+                    <div className="flex space-x-2">
+                      <Input
+                        value={keywordInput}
+                        onChange={(e) => setKeywordInput(e.target.value)}
+                        placeholder="Tambah kata kunci"
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
+                      />
+                      <Button type="button" onClick={addKeyword} variant="outline">
+                        Tambah
+                      </Button>
+                    </div>
+
+                    {/* Autocomplete Suggestions */}
+                    {keywordInput.trim() && (
+                      <div className="border rounded-md p-2 max-h-32 overflow-y-auto bg-popover text-popover-foreground space-y-1">
+                        <p className="text-xs text-muted-foreground font-semibold">Saran Tag:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {availableTags
+                            .filter(tag => tag.toLowerCase().includes(keywordInput.toLowerCase()) && !formData.keywords.includes(tag))
+                            .slice(0, 10)
+                            .map(tag => (
+                              <Badge
+                                key={tag}
+                                variant="outline"
+                                className="cursor-pointer hover:bg-primary hover:text-primary-foreground text-xs"
+                                onClick={() => {
+                                  setFormData(prev => ({ ...prev, keywords: [...prev.keywords, tag] }));
+                                  setKeywordInput("");
+                                }}
+                              >
+                                + {tag}
+                              </Badge>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {formData.keywords.map((keyword, index) => (
+                        <span
+                          key={index}
+                          className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm cursor-pointer"
+                          onClick={() => removeKeyword(keyword)}
+                        >
+                          {keyword} ×
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tema</Label>
+                  <div className="border rounded-md p-4 space-y-2 max-h-64 overflow-y-auto">
+                    {themes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Tidak ada tema yang tersedia</p>
+                    ) : (
+                      themes.map((theme) => (
+                        <div key={theme.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`theme-${theme.id}`}
+                            checked={formData.selected_theme_ids.includes(theme.id)}
+                            onChange={() => toggleTheme(theme.id)}
+                            className="rounded border-gray-300"
+                          />
+                          <label
+                            htmlFor={`theme-${theme.id}`}
+                            className="text-sm cursor-pointer flex-1"
+                          >
+                            {theme.name} <span className="text-muted-foreground">({theme.code})</span>
+                          </label>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.selected_theme_ids.map((themeId) => {
+                      const theme = themes.find(t => t.id === themeId);
+                      return theme ? (
+                        <span
+                          key={themeId}
+                          className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm cursor-pointer"
+                          onClick={() => toggleTheme(themeId)}
+                        >
+                          {theme.name} ×
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="access" className="space-y-6 pt-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="contact_email">Email Kontak</Label>
+                    <Input
+                      id="contact_email"
+                      type="email"
+                      value={formData.contact_email}
+                      onChange={(e) => setFormData(prev => ({ ...prev, contact_email: e.target.value }))}
+                      placeholder="contact@example.com"
+                    />
+                    {errors.contact_email && <p className="text-sm text-destructive">{errors.contact_email}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="language">Bahasa *</Label>
+                    <Select
+                      value={formData.language}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, language: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih bahasa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="id">Indonesia</SelectItem>
+                        <SelectItem value="en">Inggris</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {errors.language && <p className="text-sm text-destructive">{errors.language}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="classification">Klasifikasi *</Label>
+                    <Select
+                      value={formData.classification_code}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, classification_code: value as "PUBLIC" | "TERBATAS" }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih klasifikasi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PUBLIC">Publik</SelectItem>
+                        <SelectItem value="TERBATAS">Terbatas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {errors.classification_code && <p className="text-sm text-destructive">{errors.classification_code}</p>}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Label htmlFor="license">Lisensi *</Label>
+                      <LicenseExplanationDialog />
+                    </div>
+                    <Select
+                      value={formData.license_code}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, license_code: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih lisensi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {licenses.map((license) => (
+                          <SelectItem key={license.code} value={license.code}>
+                            {license.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.license_code && <p className="text-sm text-destructive">{errors.license_code}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="frequency">Frekuensi Update *</Label>
+                    <Select
+                      value={formData.update_frequency_code}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, update_frequency_code: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih frekuensi update" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {frequencies.map((freq) => (
+                          <SelectItem key={freq.code} value={freq.code}>
+                            {freq.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.update_frequency_code && <p className="text-sm text-destructive">{errors.update_frequency_code}</p>}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="temporal_start">Tanggal Mulai Berlaku</Label>
+                    <Input
+                      id="temporal_start"
+                      type="date"
+                      value={formData.temporal_start}
+                      onChange={(e) => setFormData(prev => ({ ...prev, temporal_start: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="temporal_end">Tanggal Berakhir Berlaku</Label>
+                    <Input
+                      id="temporal_end"
+                      type="date"
+                      value={formData.temporal_end}
+                      onChange={(e) => setFormData(prev => ({ ...prev, temporal_end: e.target.value }))}
+                      disabled={isOngoing}
+                      className={isOngoing ? "bg-muted cursor-not-allowed font-medium text-primary" : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant={isOngoing ? "secondary" : "outline"}
+                      size="sm"
+                      className="w-fit text-xs font-semibold shadow-sm transition-all duration-200 mt-2"
+                      onClick={() => {
+                        const nextOngoing = !isOngoing;
+                        setIsOngoing(nextOngoing);
+                        if (nextOngoing) {
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          setFormData((prev) => ({ ...prev, temporal_end: todayStr }));
+                        } else {
+                          setFormData((prev) => ({ ...prev, temporal_end: "" }));
+                        }
+                      }}
+                    >
+                      {isOngoing ? (
+                        <span>📅 Ubah ke Tanggal Spesifik</span>
+                      ) : (
+                        <span>🔗 Tandai sebagai "Masih Berjalan"</span>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex justify-end space-x-4 pt-6 border-t">
               <Button
                 type="button"
                 variant="outline"

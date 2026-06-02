@@ -43,6 +43,9 @@ export interface Dataset {
   temporal_start?: string | null;
   temporal_end?: string | null;
   created_at?: string | null;
+  metadata_updated_at?: string | null;
+  data_updated_at?: string | null;
+  last_published_at?: string | null;
   version?: string;
   license_code?: string | null;
   custom_id?: string | null;
@@ -56,6 +59,7 @@ export interface Dataset {
     code: string;
     name: string;
     notes: string | null;
+    grace_period_months?: number;
   } | null;
   spatial_coverage?: Array<{
     id: string;
@@ -243,8 +247,11 @@ export const useDatasets = () => {
           temporal_start: dataset.temporal_start,
           temporal_end: dataset.temporal_end,
           created_at: dataset.created_at,
+          metadata_updated_at: dataset.metadata_updated_at,
+          data_updated_at: dataset.data_updated_at,
+          last_published_at: dataset.last_published_at,
           license_code: dataset.license_code,
-          custom_id: (dataset as any).custom_id,
+          custom_id: dataset.custom_id,
           organization: dataset.organization ? {
             id: dataset.organization.id,
             name: dataset.organization.name,

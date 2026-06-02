@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { addDays, addMonths, addYears, isAfter } from "date-fns";
 
 interface Dataset {
   id: string;
@@ -36,6 +37,15 @@ interface Dataset {
   is_priority: boolean;
   unpublish_request_reason?: string;
   custom_id?: string | null;
+  metadata_updated_at?: string | null;
+  data_updated_at?: string | null;
+  last_published_at?: string | null;
+  frequency?: {
+    code: string;
+    name: string;
+    notes: string | null;
+    grace_period_months: number;
+  } | null;
 }
 
 export function DatasetManagement() {
@@ -59,6 +69,80 @@ export function DatasetManagement() {
   const itemsPerPage = 10;
   const { toast } = useToast();
 
+  const getExpectedUpdateInfo = (dataset: Dataset) => {
+    const baseDateStr = dataset.data_updated_at || dataset.created_at || dataset.updated_at;
+    const baseDate = new Date(baseDateStr);
+
+    if (isNaN(baseDate.getTime())) {
+      return { isExpired: false, dateDisplay: "—", statusText: "—" };
+    }
+
+    const frequencyCode = dataset.frequency?.code || "TAH";
+    let nextUpdateDue = new Date(baseDate);
+
+    switch (frequencyCode) {
+      case 'HAR': // Harian
+        nextUpdateDue = addDays(baseDate, 1);
+        break;
+      case 'BLN': // Bulanan
+        nextUpdateDue = addMonths(baseDate, 1);
+        break;
+      case 'TRI': // Triwulan
+        nextUpdateDue = addMonths(baseDate, 3);
+        break;
+      case 'SEM': // Semester
+        nextUpdateDue = addMonths(baseDate, 6);
+        break;
+      case 'TAH': // Tahunan
+        nextUpdateDue = addYears(baseDate, 1);
+        break;
+      case 'HUB': // Hubungi Penyedia
+      default:
+        return { isExpired: false, dateDisplay: "Hubungi Penyedia", statusText: "Hubungi Penyedia" };
+    }
+
+    // Apply Tolerance Grace Period (Masa Tenggang) from Update Frequency configuration
+    const graceMonths = dataset.frequency?.grace_period_months || 0;
+    if (graceMonths > 0) {
+      nextUpdateDue = addMonths(nextUpdateDue, graceMonths);
+    }
+
+    const isExpired = isAfter(new Date(), nextUpdateDue);
+    const formattedDate = nextUpdateDue.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+
+    return {
+      isExpired,
+      dateDisplay: formattedDate,
+      statusText: isExpired ? "Terlambat" : "Terpenuhi"
+    };
+  };
+
+  const getReviewType = (dataset: Dataset) => {
+    const isPendingReview = dataset.publication_status === 'PENDING_REVIEW';
+    if (!isPendingReview) return null;
+
+    const metadataUpdatedAt = dataset.metadata_updated_at ? new Date(dataset.metadata_updated_at) : null;
+    const dataUpdatedAt = dataset.data_updated_at ? new Date(dataset.data_updated_at) : null;
+    const lastPublishedAt = dataset.last_published_at ? new Date(dataset.last_published_at) : null;
+
+    let reviewType: 'metadata_only' | 'real_data' | 'new_dataset' = 'new_dataset';
+    
+    if (lastPublishedAt) {
+      if (metadataUpdatedAt && dataUpdatedAt) {
+        if (metadataUpdatedAt > lastPublishedAt && dataUpdatedAt <= lastPublishedAt) {
+          reviewType = 'metadata_only';
+        } else if (dataUpdatedAt > lastPublishedAt) {
+          reviewType = 'real_data';
+        }
+      }
+    }
+    return reviewType;
+  };
+
   useEffect(() => {
     const fetchUserOrg = async () => {
       if (!user) return;
@@ -76,7 +160,15 @@ export function DatasetManagement() {
     try {
       let query = supabase
         .from('catalog_metadata')
-        .select('*');
+        .select(`
+          *,
+          frequency:freq_upd!fk_catalog_metadata_update_frequency_code (
+            code,
+            name,
+            notes,
+            grace_period_months
+          )
+        `);
       
       // Filter by org for PRODUSEN users
       if (isProdusen && userOrgId) {
@@ -616,110 +708,158 @@ export function DatasetManagement() {
                 <TableHead>Title</TableHead>
                 <TableHead>Classification</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Language</TableHead>
+                <TableHead>Expected Update</TableHead>
+                <TableHead>Tipe Perubahan</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedDatasets.map((dataset) => (
-                <TableRow key={dataset.id}>
-                  <TableCell>
-                    <div className="flex flex-col gap-1.5 py-1">
-                      <div className="font-semibold text-sm text-foreground">
-                        {dataset.title}
-                      </div>
-                      <div className="flex items-center">
-                        {dataset.custom_id ? (
-                          <Badge variant="outline" className="font-mono font-bold text-xs bg-blue-50 text-blue-700 border-blue-200">
-                            {dataset.custom_id}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs text-amber-600 bg-amber-50 border-amber-200">
-                            Belum Terdaftar (Draft/Review)
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <Badge variant="outline">{dataset.classification_code}</Badge>
-                      {dataset.is_priority && (
-                        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
-                          Prioritas
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        {dataset.unpublish_request_reason && dataset.publication_status === 'PUBLISHED' ? (
-                          <Badge variant="outline" className="border-yellow-500 text-yellow-700 dark:text-yellow-500">
-                            UNPUBLISH REVIEW
-                          </Badge>
-                        ) : (
-                          <Badge variant={getStatusBadgeVariant(dataset.publication_status)}>
-                            {dataset.publication_status.replace('_', ' ')}
-                          </Badge>
-                        )}
-                        {getStatusActions(dataset)}
-                      </div>
-                      {dataset.unpublish_request_reason && permissions.canPublishDatasets && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          <span className="font-semibold">Reason:</span> {dataset.unpublish_request_reason}
+              {paginatedDatasets.map((dataset) => {
+                const reviewType = getReviewType(dataset);
+                const expectedUpdate = getExpectedUpdateInfo(dataset);
+
+                return (
+                  <TableRow key={dataset.id}>
+                    <TableCell>
+                      <div className="flex flex-col gap-1.5 py-1">
+                        <div className="font-semibold text-sm text-foreground">
+                          {dataset.title}
                         </div>
+                        <div className="flex items-center">
+                          {dataset.custom_id ? (
+                            <Badge variant="outline" className="font-mono font-bold text-xs bg-blue-50 text-blue-700 border-blue-200">
+                              {dataset.custom_id}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-amber-600 bg-amber-50 border-amber-200">
+                              Belum Terdaftar (Draft/Review)
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline">{dataset.classification_code}</Badge>
+                        {dataset.is_priority && (
+                          <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
+                            Prioritas
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          {dataset.unpublish_request_reason && dataset.publication_status === 'PUBLISHED' ? (
+                            <Badge variant="outline" className="border-yellow-500 text-yellow-700 dark:text-yellow-500">
+                              UNPUBLISH REVIEW
+                            </Badge>
+                          ) : (
+                            <Badge variant={getStatusBadgeVariant(dataset.publication_status)}>
+                              {dataset.publication_status.replace('_', ' ')}
+                            </Badge>
+                          )}
+                          {getStatusActions(dataset)}
+                        </div>
+                        {dataset.unpublish_request_reason && permissions.canPublishDatasets && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            <span className="font-semibold">Reason:</span> {dataset.unpublish_request_reason}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {dataset.publication_status === 'PUBLISHED' ? (
+                        <div className="flex flex-col gap-1">
+                          <Badge 
+                            className={
+                              expectedUpdate.isExpired 
+                                ? "bg-red-500 hover:bg-red-600 text-white font-semibold border-0 text-xs w-fit" 
+                                : "bg-green-500 hover:bg-green-600 text-white font-semibold border-0 text-xs w-fit"
+                            }
+                          >
+                            {expectedUpdate.statusText}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground font-medium">
+                            Batas: {expectedUpdate.dateDisplay}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground font-medium">
+                          {dataset.frequency?.name || "—"}
+                        </span>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{dataset.language?.toUpperCase()}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(dataset.updated_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handlePreview(dataset)}
-                        title="Preview dataset"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleEdit(dataset)}
-                        title="Edit dataset"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => navigate(`/admin/datasets/${dataset.id}/tables`)}
-                        title="Manage data tables"
-                      >
-                        <Database className="w-4 h-4" />
-                      </Button>
-                      {isAdmin && (
+                    </TableCell>
+                    <TableCell>
+                      {reviewType ? (
+                        <div className="flex flex-col gap-1">
+                          {reviewType === 'metadata_only' && (
+                            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 font-semibold text-xs w-fit">
+                              📝 Informasi
+                            </Badge>
+                          )}
+                          {reviewType === 'real_data' && (
+                            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 font-semibold text-xs w-fit">
+                              📊 Data Tabel
+                            </Badge>
+                          )}
+                          {reviewType === 'new_dataset' && (
+                            <Badge variant="outline" className="border-purple-200 bg-purple-50 text-purple-700 font-semibold text-xs w-fit">
+                              ✨ Baru (First Publish)
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground font-medium">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(dataset.updated_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          onClick={() => handleDelete(dataset)}
-                          title="Hapus dataset"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handlePreview(dataset)}
+                          title="Preview dataset"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleEdit(dataset)}
+                          title="Edit dataset"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => navigate(`/admin/datasets/${dataset.id}/tables`)}
+                          title="Manage data tables"
+                        >
+                          <Database className="w-4 h-4" />
+                        </Button>
+                        {isAdmin && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleDelete(dataset)}
+                            title="Hapus dataset"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

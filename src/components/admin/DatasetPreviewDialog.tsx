@@ -18,6 +18,9 @@ interface Dataset {
   updated_at: string;
   contact_email: string;
   language: string;
+  metadata_updated_at?: string | null;
+  data_updated_at?: string | null;
+  last_published_at?: string | null;
 }
 
 interface DatasetPreviewDialogProps {
@@ -33,6 +36,23 @@ export function DatasetPreviewDialog({ open, onOpenChange, dataset }: DatasetPre
 
   const hasTableData = indicators.length > 0 && columns.length > 0;
   const hasDataPoints = dataPoints.length > 0;
+
+  const isPendingReview = dataset.publication_status === 'PENDING_REVIEW';
+  const metadataUpdatedAt = dataset.metadata_updated_at ? new Date(dataset.metadata_updated_at) : null;
+  const dataUpdatedAt = dataset.data_updated_at ? new Date(dataset.data_updated_at) : null;
+  const lastPublishedAt = dataset.last_published_at ? new Date(dataset.last_published_at) : null;
+
+  let reviewType: 'metadata_only' | 'real_data' | 'new_dataset' = 'new_dataset';
+  
+  if (lastPublishedAt) {
+    if (metadataUpdatedAt && dataUpdatedAt) {
+      if (metadataUpdatedAt > lastPublishedAt && dataUpdatedAt <= lastPublishedAt) {
+        reviewType = 'metadata_only';
+      } else if (dataUpdatedAt > lastPublishedAt) {
+        reviewType = 'real_data';
+      }
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,6 +72,30 @@ export function DatasetPreviewDialog({ open, onOpenChange, dataset }: DatasetPre
             <Badge variant="outline">{dataset.classification_code}</Badge>
             <Badge variant="outline">{dataset.language?.toUpperCase()}</Badge>
           </div>
+
+          {isPendingReview && (
+            <Alert className={
+              reviewType === 'metadata_only' 
+                ? "bg-blue-50 border-blue-200 text-blue-800" 
+                : reviewType === 'real_data' 
+                  ? "bg-amber-50 border-amber-200 text-amber-800" 
+                  : "bg-purple-50 border-purple-200 text-purple-800"
+            }>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle className="font-semibold text-sm">Tinjauan Perubahan (Change Review)</AlertTitle>
+              <AlertDescription className="mt-1 text-xs leading-normal">
+                {reviewType === 'metadata_only' && (
+                  <span>📝 <strong>Hanya Informasi (Metadata)</strong>: Dataset ini hanya memiliki perubahan pada teks deskripsi, kontak, atau metadata lainnya. Data tabel tidak disentuh. Anda dapat menyetujui langsung.</span>
+                )}
+                {reviewType === 'real_data' && (
+                  <span>📊 <strong>Pembaruan Data Riil</strong>: Produsen telah mengunggah atau memodifikasi baris data pada tabel. Harap periksa pratinjau tabel di bawah sebelum menyetujui publikasi.</span>
+                )}
+                {reviewType === 'new_dataset' && (
+                  <span>✨ <strong>Publikasi Baru Pertama Kali</strong>: Ini adalah dataset baru yang belum pernah dipublikasikan sebelumnya. Lakukan pemeriksaan penuh terhadap metadata dan tabel data.</span>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {dataset.description && (
             <Card>

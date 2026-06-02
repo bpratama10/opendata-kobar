@@ -61,7 +61,8 @@ export const useDatasetDetail = (slug: string) => {
           frequency:freq_upd!fk_catalog_metadata_update_frequency_code (
             code,
             name,
-            notes
+            notes,
+            grace_period_months
           ),
           catalog_dataset_spatial_coverage (
             spatial_unit:spatial_units!catalog_dataset_spatial_coverage_spatial_id_fkey (
@@ -138,7 +139,7 @@ export const useDatasetDetail = (slug: string) => {
       const mainDistribution = distributions[0];
 
       // Parse spatial coverage
-      const spatialCoverageRaw = (data as any).catalog_dataset_spatial_coverage;
+      const spatialCoverageRaw = data.catalog_dataset_spatial_coverage;
       const spatial_coverage = Array.isArray(spatialCoverageRaw)
         ? spatialCoverageRaw
             .map((item: any) => item.spatial_unit)
@@ -157,7 +158,7 @@ export const useDatasetDetail = (slug: string) => {
 
       const downloadCount = downloadCountError ? 0 : (downloadCountData || 0);
 
-      const orgRaw = (data as any).organization;
+      const orgRaw = data.organization;
       const organization = orgRaw
         ? {
             id: orgRaw.id,
@@ -206,18 +207,22 @@ export const useDatasetDetail = (slug: string) => {
         temporal_start: data.temporal_start,
         temporal_end: data.temporal_end,
         created_at: data.created_at,
+        metadata_updated_at: data.metadata_updated_at,
+        data_updated_at: data.data_updated_at,
+        last_published_at: data.last_published_at,
         license_code: data.license_code,
-        custom_id: (data as any).custom_id,
-        license: (data as any).license ? {
-          code: (data as any).license.code,
-          name: (data as any).license.name,
-          url: (data as any).license.url,
-          notes: (data as any).license.notes,
+        custom_id: data.custom_id,
+        license: data.license ? {
+          code: data.license.code,
+          name: data.license.name,
+          url: data.license.url,
+          notes: data.license.notes,
         } : null,
-        frequency: (data as any).frequency ? {
-          code: (data as any).frequency.code,
-          name: (data as any).frequency.name,
-          notes: (data as any).frequency.notes,
+        frequency: data.frequency ? {
+          code: data.frequency.code,
+          name: data.frequency.name,
+          notes: data.frequency.notes,
+          grace_period_months: data.frequency.grace_period_months || 0,
         } : null,
         spatial_coverage,
       };

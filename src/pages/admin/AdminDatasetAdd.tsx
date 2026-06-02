@@ -58,6 +58,11 @@ interface Theme {
   name: string;
 }
 
+interface GovAffairs {
+  code: string;
+  name: string;
+}
+
 export default function AdminDatasetAdd() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -67,6 +72,7 @@ export default function AdminDatasetAdd() {
   const [frequencies, setFrequencies] = useState<UpdateFrequency[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [govAffairs, setGovAffairs] = useState<GovAffairs[]>([]);
   const [userOrgId, setUserOrgId] = useState<string | null>(null);
   const [isSlugLocked, setIsSlugLocked] = useState(true);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
@@ -87,6 +93,7 @@ export default function AdminDatasetAdd() {
     selected_theme_ids: [] as string[],
     selected_org_id: "", // Add organization selection
     maintainers: "", // Comma-separated maintainers
+    urusan_code: "", // Add urusan_code selection
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [keywordInput, setKeywordInput] = useState("");
@@ -100,6 +107,7 @@ export default function AdminDatasetAdd() {
     fetchOrganizations();
     fetchThemes();
     fetchTags();
+    fetchGovAffairs();
   }, []);
 
   useEffect(() => {
@@ -143,6 +151,13 @@ export default function AdminDatasetAdd() {
     const { data, error } = await supabase.from("catalog_tags").select("name").order("name");
     if (!error && data) {
       setAvailableTags(data.map((t) => t.name));
+    }
+  };
+
+  const fetchGovAffairs = async () => {
+    const { data, error } = await supabase.from("gov_affairs").select("code, name").order("code");
+    if (!error && data) {
+      setGovAffairs(data);
     }
   };
 
@@ -259,7 +274,7 @@ export default function AdminDatasetAdd() {
       }
 
       // Create the dataset metadata
-      const { selected_org_id, selected_theme_ids, maintainers, ...datasetFields } = formData;
+      const { selected_org_id, selected_theme_ids, maintainers, urusan_code, ...datasetFields } = formData;
 
       // Parse maintainers from comma-separated string to array
       const maintainersArray = maintainers
@@ -274,6 +289,7 @@ export default function AdminDatasetAdd() {
         .insert({
           ...datasetFields,
           publisher_org_id: selected_org_id,
+          urusan_code: urusan_code && urusan_code !== "none" ? urusan_code : null,
           publication_status: status,
           keywords: formData.keywords,
           maintainers: maintainersArray,
@@ -510,6 +526,32 @@ export default function AdminDatasetAdd() {
                     )}
                     {!formData.selected_org_id && <p className="text-sm text-destructive">Organisasi wajib diisi</p>}
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="urusan">Urusan Pemerintahan (Kode Urusan)</Label>
+                    <Select
+                      value={formData.urusan_code}
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, urusan_code: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Urusan Pemerintahan (Opsional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Tidak Memilih / Menggunakan Kode Kolaborator (C)</SelectItem>
+                        {govAffairs.map((affair) => (
+                          <SelectItem key={affair.code} value={affair.code}>
+                            {affair.code} - {affair.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Urusan yang dipilih akan digunakan sebagai bagian dari kode registrasi dataset (misal: U1.06).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
 
                   <div className="space-y-2">
                     <Label htmlFor="keywords">Tagging (Kata Kunci)</Label>

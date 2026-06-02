@@ -54,6 +54,7 @@ const menuItems = [
       { title: "Classifications", url: "/admin/classifications", icon: Scale },
       { title: "Licenses", url: "/admin/licenses", icon: FileText },
       { title: "Update Frequency", url: "/admin/frequency", icon: Clock },
+      { title: "Urusan Pemerintahan", url: "/admin/gov-affairs", icon: Scale },
     ]
   },
   {
@@ -71,7 +72,7 @@ export function AdminSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(!isDesktop);
   const location = useLocation();
   const navigate = useNavigate();
-  const { permissions, isProdusen } = useRoleAccess();
+  const { permissions, isProdusen, isAdmin, isWalidata, isKoordinator } = useRoleAccess();
 
   useEffect(() => {
     setIsCollapsed(!isDesktop);
@@ -91,6 +92,9 @@ export function AdminSidebar() {
       items: section.items.filter(item => {
         if (item.url === '/admin/priority-data') {
           return permissions.canViewPriorityData;
+        }
+        if (item.url === '/admin/gov-affairs') {
+          return isAdmin || isWalidata || isKoordinator;
         }
         if (isProdusen && item.url.includes('/organizations')) {
           return false;

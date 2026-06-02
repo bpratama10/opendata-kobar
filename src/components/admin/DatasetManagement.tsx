@@ -37,6 +37,7 @@ interface Dataset {
   is_priority: boolean;
   unpublish_request_reason?: string;
   custom_id?: string | null;
+  urusan_code?: string | null;
   metadata_updated_at?: string | null;
   data_updated_at?: string | null;
   last_published_at?: string | null;
@@ -46,6 +47,51 @@ interface Dataset {
     notes: string | null;
     grace_period_months: number;
   } | null;
+}
+
+export async function generateCustomId(
+  publisherOrgId: string,
+  urusanCode: string | null | undefined
+): Promise<string> {
+  // 1. Get organization code
+  let orgCode = "00";
+  if (publisherOrgId) {
+    const { data: orgData } = await supabase
+      .from("org_organizations")
+      .select("org_code")
+      .eq("id", publisherOrgId)
+      .maybeSingle();
+    if (orgData?.org_code) {
+      orgCode = orgData.org_code.padStart(2, "0");
+    }
+  }
+
+  // 2. Build prefix
+  // If urusanCode is provided (e.g. "1.06"), middle code is "U1.06"
+  // If not, middle code is "C[orgCode]" (e.g. "C01")
+  const middlePart = urusanCode ? `U${urusanCode}` : `C${orgCode}`;
+  const prefix = `6201.${middlePart}.`;
+
+  // 3. Find next sequence number
+  const { data: existingDatasets, error } = await supabase
+    .from("catalog_metadata")
+    .select("custom_id")
+    .like("custom_id", `${prefix}%`);
+
+  let nextSeq = 1;
+  if (!error && existingDatasets && existingDatasets.length > 0) {
+    const seqs = existingDatasets
+      .map((d) => {
+        const parts = d.custom_id?.split(".");
+        const seqStr = parts ? parts[parts.length - 1] : "";
+        const parsed = parseInt(seqStr, 10);
+        return isNaN(parsed) ? 0 : parsed;
+      });
+    nextSeq = Math.max(...seqs, 0) + 1;
+  }
+
+  const sequenceStr = String(nextSeq).padStart(4, "0");
+  return `${prefix}${sequenceStr}`;
 }
 
 export function DatasetManagement() {
@@ -130,7 +176,7 @@ export function DatasetManagement() {
     const lastPublishedAt = dataset.last_published_at ? new Date(dataset.last_published_at) : null;
 
     let reviewType: 'metadata_only' | 'real_data' | 'new_dataset' = 'new_dataset';
-    
+
     if (lastPublishedAt) {
       if (metadataUpdatedAt && dataUpdatedAt) {
         if (metadataUpdatedAt > lastPublishedAt && dataUpdatedAt <= lastPublishedAt) {
@@ -169,12 +215,12 @@ export function DatasetManagement() {
             grace_period_months
           )
         `);
-      
+
       // Filter by org for PRODUSEN users
       if (isProdusen && userOrgId) {
         query = query.eq('publisher_org_id', userOrgId);
       }
-      
+
       const { data, error } = await query.order('updated_at', { ascending: false });
 
       if (error) {
@@ -202,12 +248,20 @@ export function DatasetManagement() {
 
   const updatePublicationStatus = async (id: string, newStatus: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED') => {
     try {
+      const dataset = datasets.find(d => d.id === id);
+      let updatePayload: any = {
+        publication_status: newStatus,
+        updated_at: new Date().toISOString()
+      };
+
+      if (newStatus === 'PUBLISHED' && dataset && !dataset.custom_id) {
+        const customId = await generateCustomId(dataset.publisher_org_id, dataset.urusan_code);
+        updatePayload.custom_id = customId;
+      }
+
       const { error } = await supabase
         .from('catalog_metadata')
-        .update({ 
-          publication_status: newStatus,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', id);
 
       if (error) {
@@ -228,7 +282,7 @@ export function DatasetManagement() {
     } catch (error) {
       console.error('Error updating dataset:', error);
       toast({
-        title: "Error", 
+        title: "Error",
         description: "Failed to update dataset status",
         variant: "destructive",
       });
@@ -246,7 +300,7 @@ export function DatasetManagement() {
 
   const getStatusActions = (dataset: Dataset) => {
     const actions = [];
-    
+
     // PRODUSEN can submit for review from DRAFT or REJECTED
     if ((dataset.publication_status === 'DRAFT' || dataset.publication_status === 'REJECTED')) {
       actions.push(
@@ -261,7 +315,7 @@ export function DatasetManagement() {
         </Button>
       );
     }
-    
+
     // WALIDATA/ADMIN can publish from PENDING_REVIEW
     if (dataset.publication_status === 'PENDING_REVIEW') {
       actions.push(
@@ -287,7 +341,7 @@ export function DatasetManagement() {
         </Button>
       );
     }
-    
+
     // Unpublish handling based on role
     if (dataset.publication_status === 'PUBLISHED') {
       if (isProdusen) {
@@ -321,7 +375,7 @@ export function DatasetManagement() {
         );
       }
     }
-    
+
     return actions;
   };
 
@@ -680,11 +734,11 @@ export function DatasetManagement() {
               <span className="text-sm text-blue-700">
                 Filtered by: <strong>
                   {datasetFilter === 'priority' ? 'Priority Datasets' :
-                   datasetFilter === 'basic' ? 'Basic Datasets' :
-                   statusFilter === 'DRAFT' ? 'Draft Status' :
-                   statusFilter === 'PENDING_REVIEW' ? 'Pending Review' :
-                   statusFilter === 'PUBLISHED' ? 'Published' :
-                   statusFilter === 'REJECTED' ? 'Rejected' : ''}
+                    datasetFilter === 'basic' ? 'Basic Datasets' :
+                      statusFilter === 'DRAFT' ? 'Draft Status' :
+                        statusFilter === 'PENDING_REVIEW' ? 'Pending Review' :
+                          statusFilter === 'PUBLISHED' ? 'Published' :
+                            statusFilter === 'REJECTED' ? 'Rejected' : ''}
                 </strong>
               </span>
               <Button
@@ -773,10 +827,10 @@ export function DatasetManagement() {
                     <TableCell>
                       {dataset.publication_status === 'PUBLISHED' ? (
                         <div className="flex flex-col gap-1">
-                          <Badge 
+                          <Badge
                             className={
-                              expectedUpdate.isExpired 
-                                ? "bg-red-500 hover:bg-red-600 text-white font-semibold border-0 text-xs w-fit" 
+                              expectedUpdate.isExpired
+                                ? "bg-red-500 hover:bg-red-600 text-white font-semibold border-0 text-xs w-fit"
                                 : "bg-green-500 hover:bg-green-600 text-white font-semibold border-0 text-xs w-fit"
                             }
                           >
@@ -807,7 +861,7 @@ export function DatasetManagement() {
                           )}
                           {reviewType === 'new_dataset' && (
                             <Badge variant="outline" className="border-purple-200 bg-purple-50 text-purple-700 font-semibold text-xs w-fit">
-                              ✨ Baru (First Publish)
+                              🔰 Baru
                             </Badge>
                           )}
                         </div>
@@ -820,34 +874,34 @@ export function DatasetManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handlePreview(dataset)}
                           title="Preview dataset"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleEdit(dataset)}
                           title="Edit dataset"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => navigate(`/admin/datasets/${dataset.id}/tables`)}
                           title="Manage data tables"
                         >
                           <Database className="w-4 h-4" />
                         </Button>
                         {isAdmin && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDelete(dataset)}
                             title="Hapus dataset"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -869,13 +923,13 @@ export function DatasetManagement() {
           </CardFooter>
         )}
       </Card>
-      
-      <DatasetPreviewDialog 
+
+      <DatasetPreviewDialog
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         dataset={previewDataset}
       />
-      
+
       <UnpublishRequestDialog
         open={unpublishDialogOpen}
         onOpenChange={setUnpublishDialogOpen}

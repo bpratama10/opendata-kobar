@@ -26,6 +26,7 @@ import AdminAudit from "./pages/admin/AdminAudit";
 import AdminDataTables from "./pages/admin/AdminDataTables";
 import PriorityData from "./pages/admin/PriorityData";
 import AdminAPIKeys from "./pages/admin/AdminAPIKeys";
+import AdminGovAffairs from "./pages/admin/AdminGovAffairs";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import AuthConfirm from "./pages/AuthConfirm";
@@ -67,6 +68,7 @@ const App = () => (
           <Route path="/admin/api-keys" element={<AdminAPIKeys />} />
           <Route path="/admin/audit" element={<AdminAudit />} />
           <Route path="/admin/priority-data" element={<PriorityData />} />
+          <Route path="/admin/gov-affairs" element={<AdminGovAffairs />} />
           <Route path="/dataset/:slug" element={<DatasetDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

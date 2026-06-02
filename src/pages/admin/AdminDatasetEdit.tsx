@@ -16,6 +16,12 @@ import { LicenseExplanationDialog } from "@/components/admin/LicenseExplanationD
 import { z } from "zod";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { generateCustomId } from "@/components/admin/DatasetManagement";
+
+interface GovAffairs {
+  code: string;
+  name: string;
+}
 
 const datasetSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(255, "Title must be less than 255 characters"),
@@ -68,6 +74,11 @@ export default function AdminDatasetEdit() {
   const [frequencies, setFrequencies] = useState<UpdateFrequency[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [govAffairs, setGovAffairs] = useState<GovAffairs[]>([]);
+  const [existingCustomId, setExistingCustomId] = useState<string | null>(null);
+  const [existingPublicationStatus, setExistingPublicationStatus] = useState<string | null>(null);
+  const [existingUrusanCode, setExistingUrusanCode] = useState<string | null>(null);
+  const [existingOrgId, setExistingOrgId] = useState<string | null>(null);
   const [userOrgId, setUserOrgId] = useState<string | null>(null);
   const [isSlugLocked, setIsSlugLocked] = useState(true);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
@@ -88,6 +99,7 @@ export default function AdminDatasetEdit() {
     selected_theme_ids: [] as string[],
     selected_org_id: "",
     maintainers: "", // Comma-separated maintainers
+    urusan_code: "", // Add urusan_code selection
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [keywordInput, setKeywordInput] = useState("");
@@ -100,6 +112,7 @@ export default function AdminDatasetEdit() {
     fetchOrganizations();
     fetchThemes();
     fetchTags();
+    fetchGovAffairs();
   }, []);
 
   useEffect(() => {
@@ -178,6 +191,11 @@ export default function AdminDatasetEdit() {
       const isOngoingVal = dataset.temporal_end === createdDatePrefix || dataset.temporal_end === new Date().toISOString().split('T')[0];
       setIsOngoing(isOngoingVal);
 
+      setExistingCustomId(dataset.custom_id);
+      setExistingPublicationStatus(dataset.publication_status);
+      setExistingUrusanCode(dataset.urusan_code);
+      setExistingOrgId(dataset.publisher_org_id);
+
       setFormData({
         title: dataset.title || "",
         slug: dataset.slug || "",
@@ -194,6 +212,7 @@ export default function AdminDatasetEdit() {
         selected_theme_ids: themeIds,
         selected_org_id: dataset.publisher_org_id || "",
         maintainers: maintainersString,
+        urusan_code: dataset.urusan_code || "",
       });
     } catch (error) {
       console.error('Error fetching dataset:', error);
@@ -239,6 +258,13 @@ export default function AdminDatasetEdit() {
     const { data, error } = await supabase.from('catalog_tags').select('name').order('name');
     if (!error && data) {
       setAvailableTags(data.map(t => t.name));
+    }
+  };
+
+  const fetchGovAffairs = async () => {
+    const { data, error } = await supabase.from("gov_affairs").select("code, name").order("code");
+    if (!error && data) {
+      setGovAffairs(data);
     }
   };
 
@@ -319,7 +345,7 @@ export default function AdminDatasetEdit() {
     setLoading(true);
     try {
       // Update dataset metadata
-      const { selected_org_id, selected_theme_ids, maintainers, ...datasetFields } = formData;
+      const { selected_org_id, selected_theme_ids, maintainers, urusan_code, ...datasetFields } = formData;
 
       // Parse maintainers from comma-separated string to array
       const maintainersArray = maintainers
@@ -333,11 +359,25 @@ export default function AdminDatasetEdit() {
         )
         : datasetFields;
 
+      let customId = existingCustomId;
+      const targetUrusanCode = urusan_code && urusan_code !== "none" ? urusan_code : null;
+
+      if (existingPublicationStatus === 'PUBLISHED') {
+        const isUrusanChanged = targetUrusanCode !== existingUrusanCode;
+        const isOrgChanged = selected_org_id !== existingOrgId;
+
+        if (!existingCustomId || isUrusanChanged || isOrgChanged) {
+          customId = await generateCustomId(selected_org_id, targetUrusanCode);
+        }
+      }
+
       const { error: updateError } = await supabase
         .from('catalog_metadata')
         .update({
           ...updateFields,
           publisher_org_id: selected_org_id,
+          urusan_code: targetUrusanCode,
+          custom_id: customId,
           keywords: formData.keywords,
           maintainers: maintainersArray,
           updated_at: new Date().toISOString(),
@@ -596,6 +636,32 @@ export default function AdminDatasetEdit() {
                       </p>
                     )}
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="urusan">Urusan Pemerintahan (Kode Urusan)</Label>
+                    <Select
+                      value={formData.urusan_code}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, urusan_code: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Urusan Pemerintahan (Opsional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Tidak Memilih / Menggunakan Kode Kolaborator (C)</SelectItem>
+                        {govAffairs.map((affair) => (
+                          <SelectItem key={affair.code} value={affair.code}>
+                            {affair.code} - {affair.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Urusan yang dipilih akan digunakan sebagai bagian dari kode registrasi dataset (misal: U1.06).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
 
                   <div className="space-y-2">
                     <Label htmlFor="keywords">Kata Kunci</Label>

@@ -642,7 +642,7 @@ const DatasetDetail = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-muted-foreground leading-relaxed">{dataset.description || "Tidak ada deskripsi tersedia."}</p>
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{dataset.description || "Tidak ada deskripsi tersedia."}</p>
                   </CardContent>
                 </Card>
 

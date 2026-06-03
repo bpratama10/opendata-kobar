@@ -106,7 +106,7 @@ export function DatasetPreviewDialog({ open, onOpenChange, dataset }: DatasetPre
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">{dataset.description}</p>
+                <p className="text-muted-foreground whitespace-pre-wrap">{dataset.description}</p>
               </CardContent>
             </Card>
           )}
@@ -117,7 +117,7 @@ export function DatasetPreviewDialog({ open, onOpenChange, dataset }: DatasetPre
                 <CardTitle className="text-lg">Abstract</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground leading-relaxed">{dataset.abstract}</p>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{dataset.abstract}</p>
               </CardContent>
             </Card>
           )}

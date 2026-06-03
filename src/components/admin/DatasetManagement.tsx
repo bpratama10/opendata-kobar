@@ -51,7 +51,8 @@ interface Dataset {
 
 export async function generateCustomId(
   publisherOrgId: string,
-  urusanCode: string | null | undefined
+  urusanCode: string | null | undefined,
+  excludeDatasetId?: string
 ): Promise<string> {
   // 1. Get organization code
   let orgCode = "00";
@@ -69,14 +70,20 @@ export async function generateCustomId(
   // 2. Build prefix
   // If urusanCode is provided (e.g. "1.06"), middle code is "U1.06"
   // If not, middle code is "C[orgCode]" (e.g. "C01")
-  const middlePart = urusanCode ? `U${urusanCode}` : `C${orgCode}`;
+  const middlePart = (urusanCode && urusanCode !== "none") ? `U${urusanCode}` : `C${orgCode}`;
   const prefix = `6201.${middlePart}.`;
 
   // 3. Find next sequence number
-  const { data: existingDatasets, error } = await supabase
+  let query = supabase
     .from("catalog_metadata")
     .select("custom_id")
     .like("custom_id", `${prefix}%`);
+
+  if (excludeDatasetId) {
+    query = query.neq("id", excludeDatasetId);
+  }
+
+  const { data: existingDatasets, error } = await query;
 
   let nextSeq = 1;
   if (!error && existingDatasets && existingDatasets.length > 0) {
@@ -255,7 +262,7 @@ export function DatasetManagement() {
       };
 
       if (newStatus === 'PUBLISHED' && dataset && !dataset.custom_id) {
-        const customId = await generateCustomId(dataset.publisher_org_id, dataset.urusan_code);
+        const customId = await generateCustomId(dataset.publisher_org_id, dataset.urusan_code, id);
         updatePayload.custom_id = customId;
       }
 

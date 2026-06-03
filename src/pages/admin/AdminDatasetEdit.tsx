@@ -367,7 +367,7 @@ export default function AdminDatasetEdit() {
         const isOrgChanged = selected_org_id !== existingOrgId;
 
         if (!existingCustomId || isUrusanChanged || isOrgChanged) {
-          customId = await generateCustomId(selected_org_id, targetUrusanCode);
+          customId = await generateCustomId(selected_org_id, targetUrusanCode, id);
         }
       }
 

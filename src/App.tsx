@@ -32,6 +32,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import AuthConfirm from "./pages/AuthConfirm";
 import UpdatePassword from "./pages/UpdatePassword";
 import AdminProfile from "./pages/admin/AdminProfile";
+import Sandbox from "./pages/Sandbox";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ const App = () => (
           <Route path="/auth/confirm" element={<AuthConfirm />} />
           <Route path="/update-password" element={<UpdatePassword />} />
           <Route path="/admin/profile" element={<AdminProfile />} />
+          <Route path="/sandbox" element={<Sandbox />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/admin/datasets" element={<AdminDatasets />} />
           <Route path="/admin/datasets/add" element={<AdminDatasetAdd />} />

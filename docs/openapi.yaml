@@ -1,0 +1,325 @@
+openapi: 3.0.3
+info:
+  title: OpenData Kobar Public API
+  description: |
+    API Publik OpenData Kabupaten Kotawaringin Barat. 
+    Layanan API ini terintegrasi dengan Sistem Penghubung Layanan Pemerintah (SPLP) nasional untuk menyediakan interoperabilitas data kependudukan, kesehatan, pendidikan, dan sektor publik lainnya di Kabupaten Kotawaringin Barat sesuai amanat Perpres SPBE (No. 95/2018) dan Perpres Satu Data Indonesia (No. 39/2019).
+    
+    Semua request memerlukan kunci keamanan `x-api-key` di bagian Header.
+  version: 1.0.0
+servers:
+  - url: https://opendata.kotawaringinbaratkab.go.id/functions/v1/public-api
+    description: Production Server (Supabase Edge Function)
+  - url: http://localhost:54321/functions/v1/public-api
+    description: Local Development Server (Supabase CLI)
+paths:
+  /datasets:
+    get:
+      summary: Mendapatkan Semua Dataset Publik yang Terbit (List Datasets)
+      description: Mengambil seluruh dataset yang diklasifikasikan sebagai data TERBUKA (PUBLIC) dan berstatus TERBIT (PUBLISHED).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: Melakukan pencarian teks pada judul (title), abstraksi (abstract), atau deskripsi (description) dataset.
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Berhasil mengambil daftar dataset.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelopeList'
+        '401':
+          description: Autentikasi Gagal (Kunci API tidak ada, salah, atau tidak aktif).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailEnvelope'
+        '429':
+          description: Terlalu Banyak Permintaan (Rate limit terlampaui).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailEnvelope'
+        '500':
+          description: Terjadi kesalahan pada server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /datasets/{idOrSlug}:
+    get:
+      summary: Mendapatkan Detail Dataset Berdasarkan ID atau Slug
+      description: Mengambil data detail lengkap dari satu dataset publik, termasuk daftar file lampiran (resources) dan distribusinya.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: idOrSlug
+          in: path
+          description: UUID unik dataset atau String Slug (misal: jumlah-penduduk-kobar-2025).
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Berhasil mengambil detail dataset.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelopeDetail'
+        '401':
+          description: Autentikasi Gagal (Kunci API tidak ada, salah, atau tidak aktif).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailEnvelope'
+        '404':
+          description: Dataset tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailEnvelope'
+        '429':
+          description: Terlalu Banyak Permintaan (Rate limit terlampaui).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailEnvelope'
+        '500':
+          description: Terjadi kesalahan pada server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: Masukkan API Key yang diperoleh dari Administrator Walidata Kobar.
+
+  schemas:
+    # Envelope Responses
+    SuccessEnvelopeList:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Datasets retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetListItem'
+
+    SuccessEnvelopeDetail:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Dataset retrieved successfully
+        data:
+          $ref: '#/components/schemas/DatasetDetailItem'
+
+    FailEnvelope:
+      type: object
+      properties:
+        status:
+          type: string
+          example: fail
+        code:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: Invalid or inactive API key.
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        code:
+          type: integer
+          example: 500
+        message:
+          type: string
+          example: An unexpected error occurred on the server.
+
+    # Models / Entities
+    Publisher:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+        name:
+          type: string
+          example: Dinas Kependudukan dan Pencatatan Sipil
+        short_name:
+          type: string
+          example: Dispendukcapil
+
+    DatasetListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 8a7b3c2d-1a2b-3c4d-5e6f-7a8b9c0d1e2f
+        title:
+          type: string
+          example: Jumlah Penduduk Kabupaten Kotawaringin Barat Tahun 2025
+        slug:
+          type: string
+          example: jumlah-penduduk-kobar-2025
+        abstract:
+          type: string
+          example: Data agregat jumlah penduduk Kabupaten Kotawaringin Barat semester I tahun 2025 berdasarkan data SIAK.
+        description:
+          type: string
+          example: Dataset ini memuat data jumlah penduduk per kecamatan, rasio jenis kelamin, dan piramida usia...
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-06-20T10:00:00Z
+        updated_at:
+          type: string
+          format: date-time
+          example: 2026-06-22T14:30:00Z
+        classification_code:
+          type: string
+          example: PUBLIC
+        publication_status:
+          type: string
+          example: PUBLISHED
+        publisher:
+          $ref: '#/components/schemas/Publisher'
+        themes:
+          type: array
+          items:
+            type: string
+          example: ["Kependudukan", "Sosial"]
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["penduduk", "siak", "dispendukcapil", "demografi"]
+
+    DatasetDetailItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 8a7b3c2d-1a2b-3c4d-5e6f-7a8b9c0d1e2f
+        title:
+          type: string
+          example: Jumlah Penduduk Kabupaten Kotawaringin Barat Tahun 2025
+        slug:
+          type: string
+          example: jumlah-penduduk-kobar-2025
+        abstract:
+          type: string
+          example: Data agregat jumlah penduduk Kabupaten Kotawaringin Barat semester I tahun 2025 berdasarkan data SIAK.
+        description:
+          type: string
+          example: Dataset ini memuat data jumlah penduduk per kecamatan, rasio jenis kelamin, dan piramida usia...
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-06-20T10:00:00Z
+        updated_at:
+          type: string
+          format: date-time
+          example: 2026-06-22T14:30:00Z
+        classification_code:
+          type: string
+          example: PUBLIC
+        publication_status:
+          type: string
+          example: PUBLISHED
+        contact_email:
+          type: string
+          format: email
+          example: dispendukcapil@kotawaringinbaratkab.go.id
+        language:
+          type: string
+          example: id
+        version:
+          type: string
+          example: 1.0.0
+        publisher:
+          $ref: '#/components/schemas/Publisher'
+        themes:
+          type: array
+          items:
+            type: string
+          example: ["Kependudukan", "Sosial"]
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["penduduk", "siak", "dispendukcapil", "demografi"]
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceItem'
+
+    ResourceItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 3f2e1d0c-9b8a-7f6e-5d4c-3b2a1f0e9d8c
+        name:
+          type: string
+          example: File CSV Jumlah Penduduk Kobar Semester I 2025
+        resource_type:
+          type: string
+          example: raw_data
+        description:
+          type: string
+          example: Berisi data tabular format comma-separated values untuk diolah kembali.
+        distributions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DistributionItem'
+
+    DistributionItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7f6e5d4c-3b2a-1f0e-9d8c-7b6a5e4d3c2b
+        media_type:
+          type: string
+          example: text/csv
+        byte_size:
+          type: integer
+          example: 1204500
+        version:
+          type: string
+          example: 1.0.0

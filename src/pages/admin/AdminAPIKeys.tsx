@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -43,11 +50,27 @@ export default function AdminAPIKeys() {
   const [copied, setCopied] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [keyName, setKeyName] = useState("");
+  const [users, setUsers] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchAPIKeys();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("org_users")
+        .select("id, full_name, email")
+        .order("full_name", { ascending: true });
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error: any) {
+      console.error("Error fetching users for dropdown:", error);
+    }
+  };
 
   const fetchAPIKeys = async () => {
     try {
@@ -97,6 +120,8 @@ export default function AdminAPIKeys() {
       if (data?.success) {
         setGeneratedKey(data.apiKey);
         setShowKeyDialog(true);
+        setSelectedUserId("");
+        setKeyName("");
         await fetchAPIKeys();
         toast({
           title: "Success",
@@ -175,13 +200,24 @@ export default function AdminAPIKeys() {
         {/* Generate New Key Form */}
         <div className="bg-card p-6 rounded-lg border">
           <h2 className="text-xl font-semibold mb-4">Generate New API Key</h2>
-          <div className="flex gap-4">
-            <Input
-              placeholder="User ID (UUID)"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="flex-1"
-            />
+          <div className="flex gap-4 items-center w-full">
+            <div className="flex-1">
+              <Select
+                value={selectedUserId}
+                onValueChange={(value) => setSelectedUserId(value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select User to assign key..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.full_name || "No Name"} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Input
               placeholder="Key name (optional)"
               value={keyName}

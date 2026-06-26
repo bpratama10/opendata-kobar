@@ -226,8 +226,8 @@ Deno.serve(async (req) => {
     const client = createClient(supabaseUrl, supabaseServiceKey);
     
     // 3. Routing (Parse RESTful paths relative to base function route)
-    // Local / Produciton paths: /functions/v1/public-api/datasets or /functions/v1/public-api/datasets/:idOrSlug
-    const path = url.pathname.replace(/^\/functions\/v1\/public-api/, '').replace(/\/$/, '');
+    // Local / Production paths: /functions/v1/public-api/datasets or /public-api/datasets
+    const path = url.pathname.replace(/^\/(functions\/v1\/)?public-api/, '').replace(/\/$/, '');
 
     // Skenario A: Fetch semua datasets (/datasets atau / atau kosong)
     if (path === '' || path === '/' || path === '/datasets') {
